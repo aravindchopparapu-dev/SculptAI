@@ -306,7 +306,7 @@ small {
   position: absolute;
   z-index: -3;
   inset: 0;
-  background: url('/studio-art.png') center/cover;
+  background: url('/studio-art.webp') center/cover;
   opacity: 0.14;
   filter: saturate(0.65);
 }

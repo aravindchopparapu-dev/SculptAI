@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'SculptAI Studio / 02 — A stronger you, in motion',
   description:
-    'A futuristic fitness concept with an animated human athlete, cinematic 3D studio and fluid glass interface. Version 2 preview.',
+    'Your personal 3D fitness studio. Build a training plan, save workouts, record check-ins and review your progress. SculptAI Version 2 private beta.',
 };
 
 export default function RootLayout({

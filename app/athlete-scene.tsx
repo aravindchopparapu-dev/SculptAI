@@ -15,6 +15,7 @@ type Props = {
   speed: number;
   cameraView: number;
   highlight: boolean;
+  active?: boolean;
 };
 export default function AthleteScene(props: Props) {
   const mount = useRef<HTMLDivElement>(null),
@@ -30,7 +31,7 @@ export default function AthleteScene(props: Props) {
     try {
       renderer = new THREE.WebGLRenderer({
         alpha: true,
-        antialias: true,
+        antialias: !matchMedia('(max-width: 600px)').matches,
         powerPreference: 'high-performance',
       });
     } catch {
@@ -49,12 +50,12 @@ export default function AthleteScene(props: Props) {
     const camera = new THREE.PerspectiveCamera(31, 1, 0.1, 35);
     camera.position.set(0.9, 1.17, 4.8);
     renderer.setPixelRatio(
-      Math.min(devicePixelRatio, el.clientWidth < 500 ? 1.3 : 1.7),
+      Math.min(devicePixelRatio, el.clientWidth < 500 ? 1 : 1.35),
     );
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMappingExposure = 0.95;
     renderer.setClearColor(0x0d1729, 0);
     el.appendChild(renderer.domElement);
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -72,11 +73,14 @@ export default function AthleteScene(props: Props) {
     scene.environmentIntensity = 0.45;
     room.dispose();
     scene.add(new THREE.HemisphereLight(0xdbeeff, 0x142447, 1.15));
-    const key = new THREE.SpotLight(0xe5edff, 42, 13, 0.47, 0.6, 1.3);
+    const key = new THREE.SpotLight(0xe5edff, 28, 13, 0.47, 0.6, 1.3);
     key.position.set(-2.2, 4.8, 3.5);
     key.target.position.set(0, 0.9, 0);
     key.castShadow = true;
-    key.shadow.mapSize.set(1024, 1024);
+    key.shadow.mapSize.set(
+      el.clientWidth < 500 ? 512 : 1024,
+      el.clientWidth < 500 ? 512 : 1024,
+    );
     key.shadow.bias = -0.00015;
     key.shadow.normalBias = 0.02;
     scene.add(key, key.target);
@@ -216,10 +220,11 @@ export default function AthleteScene(props: Props) {
     composer.addPass(new RenderPass(scene, camera));
     const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.19, 0.45, 0.9);
     composer.addPass(bloom);
+    bloom.enabled = el.clientWidth >= 600;
     composer.addPass(new OutputPass());
     const clothingUniform = { value: 0 };
     new GLTFLoader().load(
-      '/athlete.glb',
+      '/athlete-optimized.glb',
       (gltf) => {
         if (disposed) {
           disposeObject(gltf.scene);
@@ -237,7 +242,10 @@ export default function AthleteScene(props: Props) {
             o.receiveShadow = true;
             if (o.material instanceof THREE.MeshStandardMaterial) {
               o.material.envMapIntensity = 0.65;
-              o.material.roughness = 0.6;
+              o.material.roughness = 0.85;
+              o.material.metalness = 0;
+              o.material.roughnessMap = null;
+              o.material.metalnessMap = null;
               if (o.material.name === 'MI_Superhero_Male') {
                 o.material.onBeforeCompile = (shader) => {
                   shader.uniforms.uFocus = clothingUniform;
@@ -260,7 +268,7 @@ float neck = smoothstep(1.44,1.48,py)*(1.0-smoothstep(.075,.12,ax));
 shirt *= 1.0-neck;
 float shorts = smoothstep(.685,.7,py)*(1.0-smoothstep(1.10,1.115,py));
 float cloth = max(shirt,shorts);
-float weave = .015*sin(py*1700.0)*sin(vRestPosition.x*1700.0);
+float weave = 0.0;
 vec3 textile = mix(vec3(.018,.029,.045),vec3(.041,.064,.085),shirt)+weave;
 float trim = smoothstep(.687,.694,py)*(1.0-smoothstep(.701,.71,py));
 float shoulderStripe = smoothstep(.36,.38,ax)*(1.0-smoothstep(.40,.42,ax))*shirt;
@@ -278,6 +286,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.72,1.05,1.19),uFo
         });
         scene.add(actor);
         actor.updateMatrixWorld(true);
+        dirty = true;
         setState('ready');
       },
       undefined,
@@ -358,6 +367,18 @@ diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.72,1.05,1.19),uFo
       frame = 0,
       lastCamera = -1;
     let cameraTransition = false;
+    let visible = true;
+    let dirty = true;
+    let lastSettings = '';
+    const onControlChange = () => {
+      dirty = true;
+    };
+    controls.addEventListener('change', onControlChange);
+    const visibility = new IntersectionObserver((entries) => {
+      visible = entries[0].isIntersecting;
+      dirty = true;
+    });
+    visibility.observe(el);
     const cameraDest = new THREE.Vector3();
     const views = [
       [0.85, 1.18, 4.8],
@@ -367,12 +388,28 @@ diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.72,1.05,1.19),uFo
     function animate() {
       if (disposed) return;
       frame = requestAnimationFrame(animate);
-      const now = performance.now(),
-        dt = Math.min((now - prev) / 1000, 0.04);
+      const now = performance.now();
+      if (document.hidden || !visible || live.current.active === false) {
+        prev = now;
+        return;
+      }
+      // Bound animation cost on high-refresh displays. Paused scenes render only
+      // while controls, lighting or the camera are settling.
+      if (now - prev < 1000 / 30) return;
+      const dt = Math.min((now - prev) / 1000, 0.04);
       prev = now;
       const settings = live.current;
       if (settings.playing !== initialPlay) userToggled = true;
       const moving = settings.playing && (!reduced || userToggled);
+      const signature = `${settings.movement}/${settings.cameraView}/${settings.highlight}`;
+      if (signature !== lastSettings) {
+        dirty = true;
+        lastSettings = signature;
+      }
+      const lightingSettling =
+        Math.abs(clothingUniform.value - (settings.highlight ? 1 : 0)) > 0.005;
+      if (!moving && !dirty && !cameraTransition && !lightingSettling) return;
+      dirty = false;
       if (moving) time += dt * settings.speed;
       if (lastCamera !== settings.cameraView) {
         lastCamera = settings.cameraView;
@@ -518,6 +555,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.72,1.05,1.19),uFo
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
       composer.setSize(w, h);
+      dirty = true;
     };
     const observer = new ResizeObserver(resize);
     observer.observe(el);
@@ -532,6 +570,8 @@ diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.72,1.05,1.19),uFo
       disposed = true;
       cancelAnimationFrame(frame);
       observer.disconnect();
+      visibility.disconnect();
+      controls.removeEventListener('change', onControlChange);
       controls.dispose();
       renderer.domElement.removeEventListener('webglcontextlost', contextLost);
       disposeObject(scene);
@@ -552,7 +592,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.72,1.05,1.19),uFo
       {state !== 'ready' && (
         <img
           className="model-fallback"
-          src="/athlete-art.png"
+          src="/athlete-art.webp"
           alt="Generated athlete portrait used while the 3D scene loads or when WebGL is unavailable"
         />
       )}

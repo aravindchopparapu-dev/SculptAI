@@ -31,7 +31,7 @@ void test('Exercise transition preserves completion and selects a supported move
   }
 });
 void test('Human model contains skinned anatomy, all movement joints, and embedded images', () => {
-  const bytes = readFileSync(new URL('../public/athlete.glb', import.meta.url));
+  const bytes = readFileSync(new URL('../public/athlete-optimized.glb', import.meta.url));
   assert.equal(bytes.toString('ascii', 0, 4), 'glTF');
   assert.equal(bytes.readUInt32LE(8), bytes.length);
   const gltf = JSON.parse(

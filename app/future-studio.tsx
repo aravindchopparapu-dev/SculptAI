@@ -435,7 +435,7 @@ export default function FutureStudio() {
                       </div>
                       <div className="training-art">
                         <img
-                          src="/athlete-art.png"
+                          src="/athlete-art.webp"
                           alt="Generated gym portrait of an adult athlete lifting a dumbbell"
                         />
                       </div>
