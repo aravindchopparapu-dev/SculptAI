@@ -1,6 +1,7 @@
 'use client';
 import { nutrition, type State } from '@/lib/fitness';
 import { Glass, Summary, Empty } from './member-forms';
+import { MealIdeas } from './meal-ideas';
 export default function Fuel({
   state,
   onAdopt,
@@ -21,45 +22,6 @@ export default function Fuel({
   } catch (e) {
     unavailable = (e as Error).message;
   }
-  const options = [
-    {
-      name: 'Lentil bowl',
-      ingredients: ['lentils', 'rice', 'vegetables', 'olive oil'],
-    },
-    {
-      name: 'Tofu bowl',
-      ingredients: ['tofu', 'rice', 'vegetables', 'olive oil'],
-    },
-    ...(profile.diet !== 'Vegan'
-      ? [
-          {
-            name: 'Egg & potato plate',
-            ingredients: ['eggs', 'potatoes', 'vegetables', 'olive oil'],
-          },
-        ]
-      : []),
-    ...(profile.diet === 'Omnivore'
-      ? [
-          {
-            name: 'Chicken rice plate',
-            ingredients: ['chicken', 'rice', 'vegetables', 'olive oil'],
-          },
-        ]
-      : []),
-  ];
-  const excluded = profile.exclusions
-    .toLowerCase()
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const meals = options.filter(
-    (m) =>
-      !excluded.some(
-        (x) =>
-          m.ingredients.some((i) => i.includes(x) || x.includes(i)) ||
-          (x === 'soy' && m.ingredients.includes('tofu')),
-      ),
-  );
   return (
     <>
       <div className="page-heading">
@@ -150,27 +112,11 @@ export default function Fuel({
           </Empty>
         </Glass>
       )}
-      <Glass>
-        <h2>A flexible plate</h2>
-        <p>
-          Choose a protein, a carbohydrate and vegetables you enjoy. These meal
-          ideas have no calculated calorie or macro totals.
-        </p>
-        <div className="record-grid">
-          {meals.map((m) => (
-            <div key={m.name}>
-              <strong>{m.name}</strong>
-              <p>{m.ingredients.join(' · ')}</p>
-            </div>
-          ))}
-        </div>
-        {!meals.length && <p>No plate ideas match these exclusions.</p>}
-        <p className="quiet-note">
-          {profile.exclusions ? `Your exclusions: ${profile.exclusions}. ` : ''}
-          Ingredient matching is a convenience, not an allergy guarantee. Check
-          labels and preparation details.
-        </p>
-      </Glass>
+      <MealIdeas
+        profile={profile}
+        target={target}
+        showEstimates={!unavailable}
+      />
       {state.targets.length > 0 && (
         <Glass>
           <h2>Target history</h2>

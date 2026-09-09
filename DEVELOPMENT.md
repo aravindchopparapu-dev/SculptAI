@@ -1,30 +1,44 @@
-# SculptAI Version 2 development checkpoint
+# SculptAI Version 2 checkpoint · 2026-09-09
 
-Selected by the user for continued development. Version 1 must be preserved.
+The user selected V2. V1 must remain preserved and separately deployed.
 
-## Current milestone (2026-09-09)
+## Published baseline
 
-- V2 account access through Sites ChatGPT sign-in/sign-out, onboarding, D1 persistence, server validation and ownership checks implemented.
-- Training plan preview/confirmation, versioning, compatible substitutions and shorter versions implemented.
-- Active workouts, per-set save, skip/partial completion, notes, previous lifts and rest timer implemented.
-- Measurement edit/delete, optional body composition, weight trend, workout history, same-repetition best lifts, nutrition targets and history implemented.
-- Offline/built-in coaching is honestly labelled. A configurable server-side OpenAI adapter with rate limiting and fallback is implemented and mocked tests pass. Live AI is NOT connected; no API credentials exist in the hosted environment. Never claim this integration is complete.
-- Human model repacked from 15,479,764 to 1,087,500 bytes. Geometry/rig unchanged. Background and fallback converted to 98,556 and 77,406 byte WebP. UI paints first; model code loads afterward; rendering skips hidden/offscreen scenes and is capped at 30 fps. Lower DPR and mobile bloom disabled.
-- Migration `drizzle/0000_glossy_ironclad.sql` generated; applied to LOCAL DB only. Hosted migration will be applied by Sites packaging/deployment.
-- 18 Node tests passed, including adapter failure/privacy tests. TypeScript and lint passed. The 12-step browser journey and 6 targeted regression checks passed on the updated packages. Desktop and 320px phone screenshots were inspected; the phone overlap was fixed. Reduced-motion, keyboard controls, sign-out, cross-origin denial and stale-revision handling passed. Final production build passed. Private deployment is the current next step.
-- Browser automation tools in the app fail to initialize with missing kernel assets. Local Playwright/Edge headless runner works. Live screenshot viewer is http://localhost:3002 while scripts/test-viewer.cjs is running. App preview http://localhost:3001.
-- Existing hourly heartbeat `build-fitness-app-website` updated to continue this thread after usage resets. No credit purchase or reset redemption authorized/performed. Pause it when development/testing is actually complete.
+The first functional V2 beta was privately deployed successfully at 12:54 UTC on September 9. Commit: 992fc49307990496b1180bf1416f82c75028b3c3. The live page and optimized model returned HTTP 200; unauthenticated /api/state returned 401. Live D1 binding DB contains members and coach_limits. Bypass access is not a signed-in member identity, so this is not proof of signed-in production writes.
 
-## Remaining before declaring the full spec complete
+The current update adds sourced meal portions, strength time series, readable mobile chart scales and additional safety checks. Its final deployment is recorded in the root VERSION-COMPARISON.md after release. Never label an unverified deployment complete.
 
-1. First functional beta browser testing is complete. Actual 3D rendering was confirmed; the local asset transfer was about 150 ms (not a hosted-network or universal device performance guarantee). WebMCP is unsupported in the available test browser and remains unverified.
-2. Lint/build passed; privately deploy to existing V2 project. Preserve V1 commit and deployment. No new Site project.
-3. Activate the prepared live AI adapter through authorized OPENAI_API_KEY secret provisioning and OPENAI_MODEL selection. Real provider acceptance is unverified; mock tests cover failure/privacy/response handling. This is an external setup dependency.
-4. Further spec coverage: quantified ingredient/portion meal templates, strength time-series and more thorough coaching evaluations. Current plate ideas intentionally have no fabricated calorie totals.
-5. Production operations and multi-user hosted identity acceptance require further work before public release. This is a private testing beta.
+## Implemented
 
-## Runtime and verification
+- Sites ChatGPT sign-in/sign-out, adult onboarding, D1 persistence, validation and server-owned records.
+- Plan preview/confirmation, historical versions, compatible substitutions and shorter versions.
+- Workouts with incremental reps/load/RPE saves, skip/partial completion, notes, previous lifts and rest timer.
+- Dated measurement edit/delete, optional body composition, weight trends, workout history, same-repetition strength trends and best lifts. Accessible chart data tables; 7/30-day consistency benchmark at the current schedule.
+- Nutrition eligibility, deterministic targets, explicit adoption, preserved inputs and history. Four portioned meal examples with raw/cooked basis and source references. USDA SR Legacy values are estimated food totals; only daily target macros use the 4/4/9 reconciliation rule.
+- Built-in guide labelled honestly. Configurable server-side OpenAI adapter, 20 requests/member/hour, timeout and fallback. No API key/model configured. User requested secure setup instructions; AI-SETUP.md is prepared.
+- Human asset reduced from 15,479,764 to 1,087,500 bytes (93%). Geometry and rig preserved. Immediate WebP artwork, deferred 3D loading, 30fps cap, hidden/offscreen pause, lower mobile rendering cost and reduced-motion support.
 
-Use bundled Node 24: `C:/Users/aravi/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe`. System Node 19 is incompatible. Scripts: `node --experimental-strip-types --test lib/member.test.ts lib/studio.test.ts`, TypeScript noEmit, oxlint, npm run build. Browser runner uses bundled Playwright and installed Edge. It only mutates the local Seedy account after verifying it is empty or contains its own `SculptAI QA` fixture. Never run that runner against production or delete real user records.
+## Verification
 
-Data uses one bounded document per user for the private MVP, with raw D1 prepared statements, revision-based compare-and-swap, and hashed idempotency payloads. Before widening access, consider normalized history tables and operational backups; current member export provides a portable copy. No payment or third-party AI request costs are incurred by the built-in guide.
+- 25 Node tests passed: ownership, idempotency, concurrency, validation, nutrition arithmetic, historical data, strength comparisons, dietary matching, food scaling, model structure and mocked AI behavior. Twelve high-risk prompt examples never reach the provider in tests.
+- Lint/type checking and production build passed for the current update. Final release status goes in the root release log.
+- Original full 12-step local browser journey passed: sign-in, profile, plan confirmation, set autosave, refresh recovery, completion, measurement, target adoption, coach, responsive tabs and sign-out.
+- Six original regression checks passed for mobile 3D separation, reduced motion, CSRF, stale writes, Escape and keyboard navigation.
+- Eight new browser checks passed for strength selection/baseline, accessible chart values, scaled portions and nutrients, USDA links and 320px layouts. No page errors. Desktop/phone screenshots inspected; chart label sizing and keyboard skip-link behavior corrected and verified.
+- Production dependency audit reported zero advisories on 2026-09-09. Development tooling advisories remain; this is not an exhaustive security audit.
+
+## Remaining external acceptance and release boundaries
+
+1. Connect a real API project securely, select an available model, deploy its environment revision, and evaluate actual provider responses, safety, missing-data handling and latency. Mocks are not live acceptance. The OpenAI Developers plugin is not callable here; see AI-SETUP.md.
+2. User sign-in and saved-record acceptance on the hosted website. Local browser tests use synthetic local identity; do not write fixtures into the owner's real hosted account. Two separate hosted identities are required before widening access.
+3. Public launch needs operational backup/restore, full security/accessibility review and broader device/network testing. Current member export is available; there is no automatic backup/restore workflow. No native app work yet.
+
+Do not claim the full specification or live AI is complete. This is a private testing beta.
+
+## Resume rules
+
+Read the latest conversation and root VERSION-COMPARISON.md first. Heartbeat build-fitness-app-website is authorized for resumptions. Avoid duplicate releases or fixture runs on unchanged source. Never buy credits, redeem resets, modify V1, or overwrite real user records. Notify only for a meaningful milestone or required action. Pause/delete the follow-up when its reason is complete.
+
+Use bundled Node 24 at C:/Users/aravi/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe; system Node 19 is incompatible. Core commands: npm test, npm run lint, npm run build. Local browser scripts require localhost:3001 and refuse unexpected profiles. scripts/test-viewer.cjs shows actual test screenshots at localhost:3002 while running. App browser automation fails to initialize due to missing kernel assets; separate Playwright/Edge works. WebMCP remains unsupported/unverified in this browser.
+
+Data uses a bounded 1.5 MB document per member, prepared D1 queries, revision compare-and-swap and hashed idempotency payloads. Applied migrations must not be edited.

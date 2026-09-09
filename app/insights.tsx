@@ -4,6 +4,8 @@ import { Plus, Trash2, TrendingUp } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { volume, weightDisplay, type State, type Metric } from '@/lib/fitness';
 import { Glass, Summary, Empty } from './member-forms';
+import { StrengthTrend } from './strength-trend';
+import { TrendChart } from './trend-chart';
 export default function Insights({
   state,
   onMetric,
@@ -17,7 +19,7 @@ export default function Insights({
   const profile = state.profile!,
     unit = profile.units === 'Imperial' ? 'lb' : 'kg',
     completed = state.sessions.filter((s) => s.completed),
-    days = period === '7 days' ? 7 : period === '30 days' ? 30 : 3650,
+    days = period === '7 days' ? 7 : period === '30 days' ? 30 : Infinity,
     since = Date.now() - days * 864e5,
     metrics = state.metrics.filter((m) => Date.parse(m.date) >= since),
     sessions = completed.filter((s) => Date.parse(s.completed!) >= since);
@@ -49,9 +51,9 @@ export default function Insights({
           detail={`${sessions.filter((s) => s.status === 'complete').length} complete · ${sessions.filter((s) => s.status !== 'complete').length} partial`}
         />
         <Summary
-          label="CONSISTENCY · 7 DAYS"
-          value={`${completed.filter((s) => Date.parse(s.completed!) >= Date.now() - 7 * 864e5 && s.status === 'complete').length} / ${profile.days}`}
-          detail="Complete workouts / current weekly goal"
+          label={`CONSISTENCY · ${period === '7 days' ? 7 : 30} DAYS`}
+          value={`${completed.filter((s) => Date.parse(s.completed!) >= Date.now() - (period === '7 days' ? 7 : 30) * 864e5 && s.status === 'complete').length} / ${Math.round((profile.days * (period === '7 days' ? 7 : 30)) / 7)}`}
+          detail={`Finished / benchmark at your current ${profile.days}-day weekly schedule`}
         />
         <Summary
           label="TOTAL LOAD VOLUME"
@@ -145,6 +147,7 @@ export default function Insights({
           </div>
         )}
       </Glass>
+      <StrengthTrend sessions={completed} units={profile.units} since={since} />
       <Records state={state} />
     </>
   );
@@ -156,63 +159,26 @@ function WeightChart({ metrics, units }: { metrics: Metric[]; units: string }) {
         <p>Add a weight check-in to begin.</p>
       </Empty>
     );
-  const values = metrics.map((m) => weightDisplay(m.weight, units)),
-    min = Math.min(...values) - 1,
-    max = Math.max(...values) + 1,
-    points = values.map(
-      (v, i) =>
-        `${35 + (i / Math.max(1, values.length - 1)) * 630},${170 - ((v - min) / (max - min)) * 140}`,
-    );
   return (
     <>
-      <svg
-        className="weight-chart"
-        viewBox="0 0 700 210"
-        role="img"
-        aria-label={`Weight trend: ${values.map((v, i) => `${metrics[i].date}: ${v} ${units === 'Imperial' ? 'lb' : 'kg'}`).join(', ')}`}
-      >
-        <defs>
-          <linearGradient id="weight-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop stopColor="#8ee8ff" stopOpacity=".25" />
-            <stop offset="1" stopColor="#8ee8ff" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path
-          d={`M35 190 L${points.join(' L')} L${35 + (values.length > 1 ? 630 : 0)} 190 Z`}
-          fill="url(#weight-fill)"
-        />
-        <polyline
-          points={points.join(' ')}
-          fill="none"
-          stroke="#8ee8ff"
-          strokeWidth="3"
-        />
-        {points.map((p, i) => (
-          <circle
-            key={i}
-            cx={p.split(',')[0]}
-            cy={p.split(',')[1]}
-            r="4"
-            fill="#b7efff"
-          >
-            <title>
-              {metrics[i].date}: {values[i]}
-            </title>
-          </circle>
-        ))}
-      </svg>
-      <div className="chart-range">
-        <span>
-          {metrics[0].date} · {values[0]} {units === 'Imperial' ? 'lb' : 'kg'}
-        </span>
-        <span>
-          {metrics.at(-1)!.date} · {values.at(-1)}{' '}
-          {units === 'Imperial' ? 'lb' : 'kg'}
-        </span>
-      </div>
+      {metrics.length === 1 && (
+        <p className="quiet-note">
+          One baseline recorded. Add a later check-in to see a trend.
+        </p>
+      )}
+      <TrendChart
+        points={metrics.map((m) => ({
+          id: m.id,
+          date: m.date,
+          value: weightDisplay(m.weight, units),
+        }))}
+        label="Weight"
+        unit={units === 'Imperial' ? 'lb' : 'kg'}
+      />
     </>
   );
 }
+
 function Records({ state }: { state: State }) {
   const records = new Map<
     string,

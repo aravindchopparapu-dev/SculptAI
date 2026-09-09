@@ -36,15 +36,29 @@
 .skip-link {
   position: fixed;
   left: 20px;
-  top: -80px;
+  top: 16px;
   z-index: 100;
-  padding: 14px 24px;
+  padding: 0;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  overflow: hidden;
   background: #d2edff;
   color: #102033;
   border-radius: 12px;
 }
 .skip-link:focus {
-  top: 16px;
+  padding: 14px 24px;
+  width: auto;
+  height: auto;
+  clip-path: none;
+  overflow: visible;
+}
+.trend-baseline {
+  border-left: 2px solid #8ee8ff;
+  padding: 10px 16px;
+  background: #8ee8ff09;
+  border-radius: 0 12px 12px 0;
 }
 .account-button {
   display: flex;
@@ -568,6 +582,114 @@
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 18px;
   margin: 20px 0;
+}
+.trend-controls,
+.meal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin: 22px 0;
+}
+.member-app .field [data-slot='select-trigger'] {
+  width: 100%;
+  max-width: 100%;
+  background: #112237;
+  color: #e6f5ff;
+  border: 1px solid #ffffff24;
+  padding: 12px;
+  height: auto;
+}
+.meal-card {
+  padding: 24px;
+  border: 1px solid #ffffff15;
+  border-radius: 24px;
+  background: #0b192c80;
+  min-width: 0;
+}
+.meal-card h3 {
+  font-size: 22px;
+  margin: 12px 0 20px;
+}
+.meal-card .field > span {
+  font-size: 12px;
+  color: #acc2d9;
+}
+.ingredient-list {
+  padding: 0;
+  margin: 24px 0;
+  list-style: none;
+  display: grid;
+  gap: 14px;
+}
+.ingredient-list strong,
+.ingredient-list span {
+  display: block;
+}
+.ingredient-list strong {
+  font-size: 14px;
+}
+.ingredient-list span {
+  color: #a8bdd3;
+  font-size: 12px;
+  margin-top: 3px;
+}
+.meal-energy {
+  font-size: 30px !important;
+  font-weight: 650;
+  color: #b8f2df !important;
+}
+.meal-energy small {
+  font-size: 12px;
+  font-weight: 400;
+  display: block;
+}
+.meal-macros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+}
+.meal-macros span {
+  background: #8ee8ff0c;
+  border-radius: 8px;
+  padding: 7px;
+}
+.meal-sources,
+.chart-values {
+  margin-top: 22px;
+  font-size: 13px;
+  color: #a8c9df;
+}
+.meal-sources summary,
+.chart-values summary {
+  cursor: pointer;
+}
+.meal-sources a {
+  display: block;
+  padding: 6px 0;
+}
+.chart-values table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 14px;
+}
+.chart-values th,
+.chart-values td {
+  text-align: left;
+  padding: 10px 6px;
+  border-bottom: 1px solid #ffffff16;
+}
+.chart-values th {
+  font-weight: 500;
+}
+@media (max-width: 760px) {
+  .trend-controls,
+  .meal-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .meal-card {
+    padding: 18px;
+  }
 }
 .record-grid > div {
   background: #ffffff04;

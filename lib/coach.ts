@@ -1,13 +1,19 @@
 import { nutrition, type State } from './fitness.ts';
 export function safetyResponse(message: string): string | null {
   if (
-    /chest pain|can.?t breathe|cannot breathe|fainting|severe shortness|heart attack/i.test(
+    /chest (pain|pressure|tightness)|can.?t breathe|cannot breathe|fainting|passed out|severe shortness|heart attack/i.test(
       message,
     )
   )
     return 'Stop exercising. Chest pain, fainting or severe breathing difficulty can need urgent care. Contact your local emergency service now; do not continue training.';
   if (
-    /pain|injur|pregnan|postpartum|diabet|kidney|liver disease|prescri|medicat|diagnos|eating disorder|purge|starv|underweight|extreme|crash diet|[4-9]00\s*(cal|kcal)/i.test(
+    /\b(?:i am|i'm|i’m|age(?:d)?)\s*(?:1[0-7]|[1-9])\b|\b(?:1[0-7]|[1-9])[- ]year[- ]old\b/i.test(
+      message,
+    )
+  )
+    return 'SculptAI is designed for adults. I cannot set a weight-loss, calorie or training prescription for a minor. A parent or guardian and a qualified youth health professional can help with age-appropriate guidance.';
+  if (
+    /pain|injur|pregnan|postpartum|breastfeed|diabet|kidney|liver disease|prescri|medicat|diagnos|eating disorder|purging|purge|bulimi|anorexi|laxative|diuretic|starv|underweight|dehydrat|water.?cut|rapid.{0,15}weight.?cut|compensat.{0,20}(exercis|workout)|burn off.{0,20}(meal|food|binge)|extreme|crash diet|\b[4-9]00\s*(cal|kcal)/i.test(
       message,
     )
   )
