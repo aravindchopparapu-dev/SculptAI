@@ -37,18 +37,19 @@ export function validateMuscles(value: unknown): MuscleGroup[] {
   return value as MuscleGroup[];
 }
 
-export function eligibleExercises(profile: Profile, selected: MuscleGroup[]) {
+export function eligibleExercises(profile: Profile, selected: MuscleGroup[], disabledExercises: string[] = []) {
   const avoid = profile.avoid.toLowerCase().split(',').map((x) => x.trim()).filter(Boolean);
   return exercises.filter((e) =>
     selected.some((group) => groupExercises[group].includes(e.name)) &&
     (e.equipment === 'Bodyweight' || e.equipment === profile.equipment || profile.equipment === 'Gym') &&
-    !avoid.some((word) => e.name.toLowerCase().includes(word)));
+    !avoid.some((word) => e.name.toLowerCase().includes(word)) &&
+    !disabledExercises.includes(e.name));
 }
 
-export function validateCustomWorkout(profile: Profile, selected: MuscleGroup[], day: Plan['days'][number]) {
+export function validateCustomWorkout(profile: Profile, selected: MuscleGroup[], day: Plan['days'][number], disabledExercises: string[] = []) {
   if (!day || !Array.isArray(day.exercises) || day.exercises.length < selected.length || day.exercises.length > 12)
     throw new Error('AI Coach returned an invalid workout. Please regenerate it.');
-  const eligible = eligibleExercises(profile, selected);
+  const eligible = eligibleExercises(profile, selected, disabledExercises);
   const names = new Set<string>();
   const clean: Plan['days'][number] = { name: selected.join(' + '), exercises: [] };
   for (const raw of day.exercises) {
@@ -77,13 +78,13 @@ export function validateCustomWorkout(profile: Profile, selected: MuscleGroup[],
   return clean;
 }
 
-export async function generateCustomWorkout(state: State, selected: MuscleGroup[], config: { OPENAI_API_KEY?: string; OPENAI_MODEL?: string; adminGuidance?: string }, request: typeof fetch = fetch, previousExercises: string[] = []) {
+export async function generateCustomWorkout(state: State, selected: MuscleGroup[], config: { OPENAI_API_KEY?: string; OPENAI_MODEL?: string; adminGuidance?: string; disabledExercises?: string[] }, request: typeof fetch = fetch, previousExercises: string[] = []) {
   const baseProfile = state.profile;
   if (!baseProfile) throw new Error('Complete your profile first.');
   const readiness = workoutReadiness(state);
   const profile = { ...baseProfile, minutes: readiness.minutes, equipment: readiness.equipment };
   if (!config.OPENAI_API_KEY) throw new Error('AI Coach is not connected. Please try again after it is configured.');
-  const baseAllowed = eligibleExercises(profile, selected);
+  const baseAllowed = eligibleExercises(profile, selected, config.disabledExercises);
   const allowed = variationOptions(profile, selected, readiness, baseAllowed, previousExercises);
   if (selected.some((group) => !allowed.some((e) => groupExercises[group].includes(e.name))))
     throw new Error('No suitable exercise is available for one of these groups with your equipment and movement exclusions.');
@@ -108,7 +109,7 @@ export async function generateCustomWorkout(state: State, selected: MuscleGroup[
   if (!text) throw new Error('AI Coach did not return a workout. Please try again.');
   let parsed: { exercises: Plan['days'][number]['exercises']; rationale?: string };
   try { parsed = JSON.parse(text); } catch { throw new Error('AI Coach returned an unreadable workout. Please try again.'); }
-  const day = validateCustomWorkout(profile, selected, { name: selected.join(' + '), exercises: parsed.exercises });
+  const day = validateCustomWorkout(profile, selected, { name: selected.join(' + '), exercises: parsed.exercises }, config.disabledExercises);
   validateWorkoutCoverage(movementCoverage, day.exercises.map(e => e.name));
   if (previousExercises.length && allowed.some(e => !previousExercises.includes(e.name)) && day.exercises.every(e => previousExercises.includes(e.name))) throw new Error('AI Coach repeated the previous selection. Please regenerate for a different variation.');
   return { day, readinessId: readiness.id, rationale: typeof parsed.rationale === 'string' ? parsed.rationale.slice(0, 600) : '' };

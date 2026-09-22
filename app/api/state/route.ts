@@ -8,6 +8,7 @@ import {
   readState,
 } from '@/lib/repository';
 import { analyzeFuelTrend, analyzeFuelTimeline } from '@/lib/fuel-coach';
+import { readPublishedControl } from '@/lib/admin-control';
 export const dynamic = 'force-dynamic';
 const json = (value: unknown, status = 200) =>
   Response.json(value, {
@@ -72,26 +73,31 @@ export async function POST(request: Request) {
           body.action,
         );
       if (['profile', 'metric', 'fuelSync'].includes(body.action.type)) {
-        const runtime = env as unknown as { OPENAI_API_KEY?: string; OPENAI_MODEL?: string };
-        const config = {
-          OPENAI_API_KEY: runtime.OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-          OPENAI_MODEL: runtime.OPENAI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-luna',
-        };
-        try {
-          const recommendation = await analyzeFuelTrend(saved.state, config);
-          if (recommendation) saved = await mutateState(getDb(), user.userId, saved.revision,
-            crypto.randomUUID(), { type: 'coachFuelReview', ...recommendation });
-        } catch {
-          // Profile/check-in and formula estimate are already saved. The next
-          // eligible update can retry the AI review without losing member data.
-          saved = await readState(getDb(), user.userId);
-        }
-        try {
-          const timeline = await analyzeFuelTimeline(saved.state, config);
-          if (timeline) saved = await mutateState(getDb(), user.userId, saved.revision,
-            crypto.randomUUID(), { type: 'coachTimeline', ...timeline });
-        } catch {
-          saved = await readState(getDb(), user.userId);
+        // A control read failure must never turn an already saved check-in into
+        // a failed response or permit an unreviewed AI adjustment.
+        let coachEnabled = false;
+        try { coachEnabled = (await readPublishedControl(getDb())).control.features.coach; }
+        catch { /* Keep the saved profile/check-in; skip optional AI analysis. */ }
+        if (coachEnabled) {
+          const runtime = env as unknown as { OPENAI_API_KEY?: string; OPENAI_MODEL?: string };
+          const config = {
+            OPENAI_API_KEY: runtime.OPENAI_API_KEY || process.env.OPENAI_API_KEY,
+            OPENAI_MODEL: runtime.OPENAI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-luna',
+          };
+          try {
+            const recommendation = await analyzeFuelTrend(saved.state, config);
+            if (recommendation) saved = await mutateState(getDb(), user.userId, saved.revision,
+              crypto.randomUUID(), { type: 'coachFuelReview', ...recommendation });
+          } catch {
+            saved = await readState(getDb(), user.userId);
+          }
+          try {
+            const timeline = await analyzeFuelTimeline(saved.state, config);
+            if (timeline) saved = await mutateState(getDb(), user.userId, saved.revision,
+              crypto.randomUUID(), { type: 'coachTimeline', ...timeline });
+          } catch {
+            saved = await readState(getDb(), user.userId);
+          }
         }
       }
       return json(saved);

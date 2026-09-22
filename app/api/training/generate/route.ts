@@ -49,6 +49,7 @@ export async function POST(request: Request) {
       OPENAI_API_KEY: runtime.OPENAI_API_KEY || process.env.OPENAI_API_KEY,
       OPENAI_MODEL: runtime.OPENAI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-luna',
       adminGuidance: control.guidance.workouts,
+      disabledExercises: control.disabledExercises,
     }, fetch, priorNames));
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : 'AI Coach is temporarily unavailable.' }, 400);

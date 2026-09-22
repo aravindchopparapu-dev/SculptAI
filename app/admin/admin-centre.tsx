@@ -1,18 +1,20 @@
 'use client';
 import { useState } from 'react';
-import { Activity, ArrowLeft, ArrowUpRight, Check, CircleHelp, FlaskConical, LockKeyhole, RotateCcw, Save, Settings2, ShieldCheck, Sparkles } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowUpRight, Check, CircleHelp, Dumbbell, FlaskConical, LockKeyhole, RotateCcw, Save, Settings2, ShieldCheck, Sparkles } from 'lucide-react';
 import type { AdminSnapshot, AppControl } from '@/lib/admin-control';
 import { demoPersonas } from '@/lib/demo';
+import { exercises } from '@/lib/fitness';
+import { groupExercises, muscleGroups } from '@/lib/custom-workout';
 import './admin.css';
 
 type AdminData = { snapshot: AdminSnapshot; memberCount: number; versions: { version: number; published_at: string; published_by: string }[];
   aiConfigured: boolean; model: string; owner: { name: string; email: string } };
 type Area = 'coach' | 'workouts' | 'meals';
-type Section = 'overview' | 'coach' | 'settings' | 'releases';
+type Section = 'overview' | 'coach' | 'library' | 'settings' | 'releases';
 const areaNames: Record<Area, string> = { coach: 'Coach answers', workouts: 'Workout plans', meals: 'Meal plans' };
 const areas: Area[] = ['coach', 'workouts', 'meals'];
 const sections: { id: Section; label: string }[] = [
-  { id: 'overview', label: 'Overview' }, { id: 'coach', label: 'Coach lab' },
+  { id: 'overview', label: 'Overview' }, { id: 'coach', label: 'Coach lab' }, { id: 'library', label: 'Exercise library' },
   { id: 'settings', label: 'App controls' }, { id: 'releases', label: 'Release history' },
 ];
 
@@ -23,6 +25,8 @@ export default function AdminCentre({ initial }: { initial: AdminData }) {
   const [area, setArea] = useState<Area>('coach');
   const [persona, setPersona] = useState(demoPersonas[0]);
   const [question, setQuestion] = useState('How should I adjust my training on a low energy day?');
+  const [exerciseGroup, setExerciseGroup] = useState<string>('All groups');
+  const [exerciseSearch, setExerciseSearch] = useState('');
   const [preview, setPreview] = useState<string>('');
   const [previewRevision, setPreviewRevision] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -77,7 +81,7 @@ export default function AdminCentre({ initial }: { initial: AdminData }) {
       <div className="admin-owner"><ShieldCheck size={18}/><span>Owner workspace<small>{data.owner.email}</small></span></div>
       <nav aria-label="Admin sections">{sections.map(item => <button key={item.id} type="button" className={section === item.id ? 'selected' : ''}
         aria-current={section === item.id ? 'page' : undefined} onClick={() => { setSection(item.id); setError(''); setMessage(''); }}>
-        {item.id === 'overview' ? <Activity size={18}/> : item.id === 'coach' ? <Sparkles size={18}/> : item.id === 'settings' ? <Settings2 size={18}/> : <RotateCcw size={18}/>}{item.label}</button>)}</nav>
+        {item.id === 'overview' ? <Activity size={18}/> : item.id === 'coach' ? <Sparkles size={18}/> : item.id === 'library' ? <Dumbbell size={18}/> : item.id === 'settings' ? <Settings2 size={18}/> : <RotateCcw size={18}/>}{item.label}</button>)}</nav>
       <a className="admin-back" href="/?tab=studio"><ArrowLeft size={16}/> Back to SculptAI</a>
     </aside>
     <main id="admin-main" className="admin-main">
@@ -114,8 +118,24 @@ export default function AdminCentre({ initial }: { initial: AdminData }) {
           <div className="admin-preview" aria-live="polite"><div><span>PREVIEW OUTPUT</span><small>{previewRevision !== null ? `Draft revision ${previewRevision}` : 'Nothing published'}</small></div>
             {preview ? <pre>{preview}</pre> : <p>Choose a fictional profile and run a test to see the Coach&apos;s response here.</p>}</div>
         </section></div>}
+      {section === 'library' && <section className="admin-card admin-library">
+        <p className="admin-eyebrow">WORKOUT CONTENT</p><h2>Exercise availability</h2>
+        <p>Hide movements you do not want in future AI generated workouts. Previously saved workouts stay as they are. The Coach tests here use the draft library; members use only the published version.</p>
+        <div className="admin-library-filters"><label className="admin-label" htmlFor="admin-exercise-search">Search movements<input id="admin-exercise-search" type="search" value={exerciseSearch} onChange={event => setExerciseSearch(event.target.value)} placeholder="Search exercise or equipment" /></label>
+          <label className="admin-label" htmlFor="admin-exercise-group">Training group<select id="admin-exercise-group" value={exerciseGroup} onChange={event => setExerciseGroup(event.target.value)}><option>All groups</option>{muscleGroups.map(group => <option key={group}>{group}</option>)}</select></label></div>
+        <div className="admin-library-count">{exercises.length - draft.disabledExercises.length} available · {draft.disabledExercises.length} hidden</div>
+        <div className="admin-library-list">{exercises.filter(exercise =>
+          (exerciseGroup === 'All groups' || groupExercises[exerciseGroup as keyof typeof groupExercises]?.includes(exercise.name)) &&
+          `${exercise.name} ${exercise.equipment}`.toLowerCase().includes(exerciseSearch.toLowerCase().trim()))
+          .map(exercise => <label className="admin-library-row" key={exercise.name}>
+            <span className="sr-only">Available: {exercise.name}</span><span><strong>{exercise.name}</strong><small>{exercise.equipment} · {exercise.cue}</small></span>
+            <input type="checkbox" checked={!draft.disabledExercises.includes(exercise.name)} onChange={event => setDraft(current => ({ ...current,
+              disabledExercises: event.target.checked ? current.disabledExercises.filter(name => name !== exercise.name) : [...current.disabledExercises, exercise.name].sort((a, b) => a.localeCompare(b)) }))} />
+          </label>)}</div>
+        <div className="admin-actions"><button className="admin-primary" disabled={busy || !dirty} onClick={() => void update('saveDraft')}><Save size={16}/> Save draft</button><button className="admin-secondary" disabled={busy || dirty || !unpublished} onClick={() => { if (window.confirm('Publish exercise availability for future workouts?')) void update('publish'); }}>Publish changes</button></div>
+      </section>}
       {section === 'settings' && <div className="admin-two-col"><section className="admin-card"><p className="admin-eyebrow">FEATURE SWITCHES</p><h2>Control availability</h2><p>Pausing a feature blocks its server endpoint after publication. Existing member records remain available.</p>
-        {areas.map(key => <label className="admin-toggle" key={key}><span className="sr-only">Toggle {areaNames[key]}</span><span><strong>{areaNames[key]}</strong><small>{key === 'coach' ? 'Member questions and Fuel explanations' : key === 'workouts' ? 'New and regenerated workout plans' : 'New and regenerated meal plans'}</small></span><input type="checkbox" checked={draft.features[key]} onChange={event => setDraft(current => ({ ...current, features: { ...current.features, [key]: event.target.checked } }))} /></label>)}</section>
+        {areas.map(key => <label className="admin-toggle" key={key}><span className="sr-only">Toggle {areaNames[key]}</span><span><strong>{areaNames[key]}</strong><small>{key === 'coach' ? 'Member questions, Fuel explanations and automatic AI reviews' : key === 'workouts' ? 'New and regenerated workout plans' : 'New and regenerated meal plans'}</small></span><input type="checkbox" checked={draft.features[key]} onChange={event => setDraft(current => ({ ...current, features: { ...current.features, [key]: event.target.checked } }))} /></label>)}</section>
         <section className="admin-card"><p className="admin-eyebrow">MEMBER COMMUNICATION</p><h2>Studio notice</h2><p>A short announcement shown to signed-in members on the web. Future clients can read it from the same app configuration API.</p>
           <label className="admin-label" htmlFor="admin-notice">Notice text</label><textarea id="admin-notice" rows={5} maxLength={280} value={draft.memberNotice} placeholder="Leave blank to show no notice." onChange={event => setDraft(current => ({ ...current, memberNotice: event.target.value }))} /><div className="admin-field-note">{draft.memberNotice.length}/280</div></section>
         <div className="admin-actions admin-wide"><button className="admin-primary" disabled={busy || !dirty} onClick={() => void update('saveDraft')}><Save size={16}/> Save draft</button><button className="admin-secondary" disabled={busy || dirty || !unpublished} onClick={() => { if (window.confirm('Publish these settings for all members?')) void update('publish'); }}>Publish changes</button></div>

@@ -66,6 +66,14 @@
 .admin-release { border-top:1px solid #d6ede526; padding:16px 0; display:flex; align-items:center; justify-content:space-between; gap:20px; }
 .admin-release strong,.admin-release small { display:block; }.admin-release small { color:#9caeb8; margin-top:4px; }
 .admin-history-note { margin-top:25px !important; font-size:12px !important; }
+.admin-library-filters { display:grid; grid-template-columns:2fr 1fr; gap:14px; align-items:end; }
+.admin-library-filters .admin-label { margin-top:0; }
+.admin-library-filters :is(input,select) { width:100%; display:block; margin-top:8px; border:1px solid #b7dddd54; background:#0d1b27; color:#ecfbf6; padding:12px; border-radius:12px; font:inherit; font-size:14px; }
+.admin-library-count { color:#a6d9c2; font-size:13px; margin:14px 0; }
+.admin-library-list { max-height:560px; overflow:auto; border-top:1px solid #d6ede526; }
+.admin-library-row { border-bottom:1px solid #d6ede51a; padding:14px 4px; display:flex; justify-content:space-between; align-items:center; gap:18px; }
+.admin-library-row strong,.admin-library-row small { display:block; }.admin-library-row strong { font-size:14px; }.admin-library-row small { color:#9fb2ba; font-size:12px; margin-top:3px; }
+.admin-library-row input { accent-color:#a9eac9; width:22px; height:22px; flex-shrink:0; }
 @media(max-width:900px) { .admin-shell { grid-template-columns:minmax(0,1fr); }.admin-sidebar { min-width:0; min-height:auto; padding:16px; }.admin-brand { padding-bottom:14px; }.admin-owner,.admin-back { display:none; }.admin-sidebar nav { flex-direction:row; overflow-x:auto; max-width:100%; }.admin-sidebar nav button { flex-shrink:0; }.admin-main { min-width:0; padding:24px 18px; } }
-@media(max-width:680px) { .admin-top { display:block; }.admin-private { margin-top:18px; }.admin-stat-grid,.admin-two-col { grid-template-columns:1fr; }.admin-stat { min-height:125px; }.admin-card { padding:22px; }.admin-segment button { min-width:100px; }.admin-wide { grid-column:auto; } }
+@media(max-width:680px) { .admin-top { display:block; }.admin-private { margin-top:18px; }.admin-stat-grid,.admin-two-col,.admin-library-filters { grid-template-columns:1fr; }.admin-stat { min-height:125px; }.admin-card { padding:22px; }.admin-segment button { min-width:100px; }.admin-wide { grid-column:auto; } }
 @media(prefers-reduced-motion:reduce) { .admin-shell * { scroll-behavior:auto; transition:none !important; } }

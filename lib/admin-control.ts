@@ -1,15 +1,18 @@
 import type { ChatGPTUser } from '../app/chatgpt-auth.ts';
+import { exercises } from './fitness.ts';
 
 export type AppControl = {
   features: { coach: boolean; workouts: boolean; meals: boolean };
   memberNotice: string;
   guidance: { coach: string; workouts: string; meals: string };
+  disabledExercises: string[];
 };
 
 export const defaultControl: AppControl = {
   features: { coach: true, workouts: true, meals: true },
   memberNotice: '',
   guidance: { coach: '', workouts: '', meals: '' },
+  disabledExercises: [],
 };
 
 export type AdminSnapshot = {
@@ -44,10 +47,15 @@ export function validateControl(value: unknown): AppControl {
   }
   if (typeof input.memberNotice !== 'string' || input.memberNotice.length > 280)
     throw new Error('Member notice must be under 280 characters.');
+  const disabled = input.disabledExercises ?? [];
+  const names = new Set(exercises.map(exercise => exercise.name));
+  if (!Array.isArray(disabled) || disabled.length > exercises.length || disabled.some(name => typeof name !== 'string' || !names.has(name)) || new Set(disabled).size !== disabled.length)
+    throw new Error('Choose exercises from the SculptAI library.');
   return {
     features: { coach: features.coach as boolean, workouts: features.workouts as boolean, meals: features.meals as boolean },
     memberNotice: input.memberNotice.trim(),
     guidance: { coach: (guidance.coach as string).trim(), workouts: (guidance.workouts as string).trim(), meals: (guidance.meals as string).trim() },
+    disabledExercises: [...disabled].sort((a, b) => a.localeCompare(b)),
   };
 }
 
