@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { Activity, ArrowLeft, ArrowUpRight, Check, CircleHelp, Dumbbell, FlaskConical, LockKeyhole, RotateCcw, Save, Settings2, ShieldCheck, Sparkles } from 'lucide-react';
-import type { AdminSnapshot, AppControl } from '@/lib/admin-control';
+import { defaultControl, type AdminSnapshot, type AppControl } from '@/lib/admin-control';
 import { demoPersonas } from '@/lib/demo';
 import { exercises } from '@/lib/fitness';
 import { groupExercises, muscleGroups } from '@/lib/custom-workout';
@@ -99,16 +99,17 @@ export default function AdminCentre({ initial }: { initial: AdminData }) {
         <div className="admin-two-col"><section className="admin-card"><p className="admin-eyebrow">TODAY&apos;S CONTROLS</p><h2>What members can use</h2>
           {areas.map(key => <div className="admin-row" key={key}><span>{areaNames[key]}</span><strong className={data.snapshot.published.features[key] ? 'status-good' : 'status-warn'}>{data.snapshot.published.features[key] ? 'On' : 'Paused'}</strong></div>)}
           <button className="admin-link-button" onClick={() => setSection('settings')}>Manage app controls <ArrowUpRight size={16}/></button></section>
-          <section className="admin-card"><p className="admin-eyebrow">SAFE WORKFLOW</p><h2>Draft → test → publish</h2><p>Edit guidance and controls, save a draft, then test AI with fictional member data. Publishing updates the web backend and the versioned configuration endpoint for future clients.</p>
+          <section className="admin-card"><p className="admin-eyebrow">SAFE WORKFLOW</p><h2>Draft → test → publish</h2><p>Edit Coach instructions and controls, save a draft, then test AI with fictional member data. Publishing updates the web backend and the versioned configuration endpoint for future clients.</p>
             <button className="admin-link-button" onClick={() => setSection('coach')}>Open Coach lab <ArrowUpRight size={16}/></button></section></div>
         <section className="admin-card admin-notice"><CircleHelp size={20}/><p>API keys stay in server secrets. This centre shows connection status, never the key. Preview calls use your configured AI model and may use API credit.</p></section>
       </>}
       {section === 'coach' && <div className="admin-two-col admin-lab">
-        <section className="admin-card"><p className="admin-eyebrow">INSTRUCTION STUDIO</p><h2>Shape AI Coach</h2><p>The app&apos;s core safety and output rules remain in code. Add owner guidance here for style, emphasis and product behavior.</p>
+        <section className="admin-card"><p className="admin-eyebrow">INSTRUCTION STUDIO</p><h2>AI Coach instructions</h2><p>Edit the complete instructions for Coach answers, workout plans, or meal plans. Fixed server safety and data rules still apply.</p>
           <div className="admin-segment" role="group" aria-label="Instruction area">{areas.map(key => <button key={key} type="button" className={area === key ? 'active' : ''} onClick={() => { setArea(key); setPreview(''); }}>{areaNames[key]}</button>)}</div>
-          <label className="admin-label" htmlFor="admin-guidance">Additional guidance · {areaNames[area]}</label>
-          <textarea id="admin-guidance" value={draft.guidance[area]} maxLength={8000} rows={13} placeholder="For example: explain each exercise choice in plain language and call out readiness adjustments." onChange={event => changeGuidance(event.target.value)} />
-          <div className="admin-field-note"><span>Saved draft: {data.snapshot.revision} · Live version: {data.snapshot.publishedVersion}</span><span>{draft.guidance[area].length}/8,000</span></div>
+          <label className="admin-label" htmlFor="admin-guidance">Full instructions · {areaNames[area]}</label>
+          <textarea id="admin-guidance" value={draft.guidance[area]} maxLength={16000} rows={18} onChange={event => changeGuidance(event.target.value)} />
+          <div className="admin-field-note"><span>Saved draft: {data.snapshot.revision} · Live version: {data.snapshot.publishedVersion}</span><span>{draft.guidance[area].length}/16,000</span></div>
+          <button className="admin-link-button" type="button" disabled={busy || draft.guidance[area] === defaultControl.guidance[area]} onClick={() => changeGuidance(defaultControl.guidance[area])}><RotateCcw size={15}/> Restore default {areaNames[area].toLowerCase()} instructions</button>
           <div className="admin-actions"><button className="admin-primary" disabled={busy || !dirty} onClick={() => void update('saveDraft')}><Save size={16}/> Save draft</button><button className="admin-secondary" disabled={busy || dirty || !unpublished} onClick={() => { if (window.confirm('Publish this draft for all members?')) void update('publish'); }}>Publish changes</button></div>
         </section>
         <section className="admin-card"><p className="admin-eyebrow">PRIVATE TEST BENCH</p><h2>Try a fictional profile</h2><p>Preview the saved draft before publishing. This makes a live AI request and never touches a real member record.</p>

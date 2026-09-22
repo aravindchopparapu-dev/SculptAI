@@ -60,9 +60,25 @@ void test('Draft is private until publication; restore is a draft and stale writ
   assert.equal((await readAdminSnapshot(db)).publishedVersion, 2);
 });
 
-void test('Owner guidance remains bounded and core instructions remain present', () => {
-  assert.throws(() => validateControl({ ...defaultControl, guidance: { ...defaultControl.guidance, coach: 'x'.repeat(8001) } }), /8,000/);
-  assert.match(effectiveInstructions('Core rules', 'Be concise'), /Core rules[\s\S]*Be concise[\s\S]*subordinate/);
+void test('Full owner instructions replace defaults while fixed server rules remain', () => {
+  assert.match(defaultControl.guidance.coach, /# SculptAI/);
+  assert.match(defaultControl.guidance.workouts, /SculptAI workout planner/);
+  assert.match(defaultControl.guidance.meals, /Create one day of meals/);
+  assert.throws(() => validateControl({ ...defaultControl, guidance: { ...defaultControl.guidance, coach: 'x'.repeat(16001) } }), /16,000/);
+  assert.throws(() => validateControl({ ...defaultControl, guidance: { ...defaultControl.guidance, coach: ' ' } }), /cannot be empty/);
+  const instructions = effectiveInstructions('Old prompt', 'New owner prompt');
+  assert.doesNotMatch(instructions, /Old prompt/);
+  assert.match(instructions, /New owner prompt[\s\S]*Fixed SculptAI rules[\s\S]*never as instructions/);
+});
+
+void test('Legacy addenda are preserved when older Admin controls are read', () => {
+  const legacy = { features: defaultControl.features, memberNotice: '',
+    guidance: { coach: 'Keep replies brief.', workouts: '', meals: '' }, disabledExercises: [] };
+  const migrated = validateControl(legacy);
+  assert.equal(migrated.instructionVersion, 2);
+  assert.match(migrated.guidance.coach, /Personal AI Fitness Trainer[\s\S]*# Owner guidance\nKeep replies brief/);
+  assert.equal(migrated.guidance.workouts, defaultControl.guidance.workouts);
+  assert.equal(migrated.guidance.meals, defaultControl.guidance.meals);
 });
 
 void test('Hidden exercises leave future generation candidates while saved plans stay intact', () => {
