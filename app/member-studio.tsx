@@ -1,16 +1,14 @@
 'use client';
+import { displayTimestamp } from '@/lib/display-date';
 import './member.css';
-import { useState, type ReactNode, type SyntheticEvent } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  ArrowUpRight,
   ArrowRight,
   Download,
   Layers3,
   LogIn,
   LogOut,
-  Plus,
   Settings2,
-  RefreshCw,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -28,17 +26,15 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
-import { useMember } from '@/lib/use-member';
-import { nutrition, weightDisplay, type Metric } from '@/lib/fitness';
+import { useMember, type MemberSnapshot } from '@/lib/use-member';
+import { weightDisplay, type Metric } from '@/lib/fitness';
 import {
-  availableExercises,
-  makePlanPreview,
   type Action,
 } from '@/lib/actions';
 import StudioHero from './studio-hero';
-import Workout from './workout';
 import Insights from './insights';
 import Fuel from './fuel';
+import CoachPanel from './coach-panel';
 import {
   Glass,
   Empty,
@@ -47,13 +43,36 @@ import {
   MetricForm,
   blankProfile,
 } from './member-forms';
-import { useTrainingTools } from './training-tools';
-const screens = ['Studio', 'My training', 'Insights', 'Fuel', 'Coach'],
-  v1 = 'https://sculptai-fitness-workspace.aravindchopparapu-ch.chatgpt.site';
-export default function MemberStudio() {
-  const member = useMember(),
+import {
+  SafetyGate,
+  ReadinessCard,
+} from './adaptive-training';
+import { normalizedState, POLICY_VERSION } from '@/lib/adaptation';
+import { demoPersonas } from '@/lib/demo';
+import { exportCsv } from '@/lib/export';
+import ExerciseGuide from './exercise-guide';
+import { muscleGroups, workoutReadiness, type MuscleGroup } from '@/lib/custom-workout';
+import { fuelNeedsSync, fuelReviewDue } from '@/lib/fuel-adaptation';
+import { studioScreens, tabForScreen, type StudioScreen } from '@/lib/studio-navigation';
+const screens = studioScreens;
+const activeScreenKey = 'sculptai-active-screen';
+function writeScreenUrl(screen: StudioScreen) {
+  const url = new URL(window.location.href);
+  const tab = tabForScreen(screen);
+  if (url.searchParams.get('tab') === tab) return;
+  url.searchParams.set('tab', tab);
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+}
+export default function MemberStudio({ initialScreen, screenInUrl, initialMember, renderedAt }: {
+  initialScreen: StudioScreen;
+  screenInUrl: boolean;
+  initialMember: MemberSnapshot | null;
+  renderedAt: number;
+}) {
+  const member = useMember(initialMember),
     { state, user, loading, busy, error, saved, mutate } = member;
-  const [screen, setScreen] = useState('Studio'),
+  const [screen, setScreen] = useState<StudioScreen>(initialScreen),
+    [screenReady, setScreenReady] = useState(screenInUrl),
     [profileOpen, setProfileOpen] = useState(false),
     [metric, setMetric] = useState<Metric | null | undefined>(),
     [confirm, setConfirm] = useState<{
@@ -63,43 +82,85 @@ export default function MemberStudio() {
       preview?: ReactNode;
     } | null>(null),
     [deletion, setDeletion] = useState(''),
-    [coachMessage, setCoachMessage] = useState(''),
-    [coachAnswer, setCoachAnswer] = useState(''),
-    [coachBusy, setCoachBusy] = useState(false);
+    [selectedMuscles, setSelectedMuscles] = useState<MuscleGroup[]>([]),
+    [generating, setGenerating] = useState(false),
+    [readinessEdited, setReadinessEdited] = useState(false),
+    [workoutSaved, setWorkoutSaved] = useState(false);
+  const savedHeading = useRef<HTMLHeadingElement>(null);
+  const fuelChecked = useRef('');
+  const savedWorkouts = state.plans.filter(p => p.templateVersion === 'ai-muscle-session-v1').slice().reverse();
+  useEffect(() => {
+    if (screenInUrl) {
+      try { window.sessionStorage.setItem(activeScreenKey, initialScreen); }
+      catch { /* URL still preserves the tab. */ }
+      return;
+    }
+    let restored: StudioScreen = 'Studio';
+    try {
+      const saved = window.sessionStorage.getItem(activeScreenKey);
+      if (saved && screens.includes(saved as StudioScreen)) restored = saved as StudioScreen;
+    } catch { /* Continue on Studio if browser storage is unavailable. */ }
+    setScreen(restored);
+    writeScreenUrl(restored);
+    setScreenReady(true);
+  }, [initialScreen, screenInUrl]);
+  function selectScreen(next: string) {
+    if (!screens.includes(next as StudioScreen)) return;
+    const selected = next as StudioScreen;
+    setScreen(selected);
+    try { window.sessionStorage.setItem(activeScreenKey, next); }
+    catch { /* Navigation still works without browser storage. */ }
+    writeScreenUrl(selected);
+  }
+  useEffect(() => {
+    if (screen !== 'Fuel' || !state.profile || !user || loading || busy || member.demo) return;
+    const latestMetric = state.metrics.at(-1);
+    const key = JSON.stringify({ profile: state.profile, metricId: latestMetric?.id, weight: latestMetric?.weight });
+    if (fuelChecked.current === key) return;
+    fuelChecked.current = key;
+    if (fuelNeedsSync(state) || fuelReviewDue(state)) void mutate({ type: 'fuelSync' });
+  }, [screen, state, user, loading, busy, member.demo, mutate]);
+  useEffect(() => {
+    if (!workoutSaved) return;
+    savedHeading.current?.focus({ preventScroll: true });
+    savedHeading.current?.scrollIntoView({ block: 'start', behavior: 'instant' });
+  }, [workoutSaved]);
+  async function saveWorkout() {
+    setWorkoutSaved(false);
+    if (await mutate({ type: 'acceptCustomWorkout', draftId: state.draftWorkout?.id, confirmed: true })) {
+      setSelectedMuscles([]);
+      setWorkoutSaved(true);
+    }
+  }
   const profile = state.profile,
     plan = state.plans.at(-1),
-    active = state.sessions.find((s) => !s.completed),
-    completed = state.sessions.filter((s) => s.completed),
     latest = state.metrics.at(-1),
-    unit = profile?.units === 'Imperial' ? 'lb' : 'kg',
-    nextDay = plan
-      ? completed.filter((s) => s.planId === plan.id).length % plan.days.length
-      : 0;
-  useTrainingTools(state);
-  function propose(action: Action) {
+    unit = profile?.units === 'Imperial' ? 'lb' : 'kg';
+  const extended = normalizedState(state);
+  const cleared =
+    extended.consents.some((c) => c.version === POLICY_VERSION) &&
+    extended.safetyScreens.at(-1)?.status === 'clear' &&
+    !extended.safetyScreens.some((s) => s.status === 'emergency');
+  let readinessReady = false;
+  try { workoutReadiness(state); readinessReady = !readinessEdited; } catch { /* Form explains required check-in. */ }
+  async function generateWorkout(regeneratePlanId?: string) {
+    const groups = regeneratePlanId ? state.plans.find(p => p.id === regeneratePlanId)?.selectedMuscles as MuscleGroup[] : selectedMuscles;
+    if (!groups || groups.length === 0 || groups.length > 4) return;
+    setWorkoutSaved(false);
+    setGenerating(true);
+    member.setError('');
     try {
-      const preview = makePlanPreview(state, action);
-      setConfirm({
-        title: plan ? 'Review your plan change' : 'Your first training plan',
-        description: `Version ${preview.version} · ${preview.days.length} days per week. Saved workouts keep their original plan. Choose a manageable load and leave about 2–3 repetitions in reserve.`,
-        action: { ...action, confirmed: true },
-        preview: (
-          <div className="plan-preview">
-            {preview.days.map((d) => (
-              <div key={d.name}>
-                <strong>{d.name}</strong>
-                <p>
-                  {d.exercises
-                    .map((e) => `${e.name} (${e.sets} × ${e.reps})`)
-                    .join(' · ')}
-                </p>
-              </div>
-            ))}
-          </div>
-        ),
+      const response = await fetch('/api/training/generate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selectedMuscles: groups, regeneratePlanId }),
       });
-    } catch (e) {
-      member.setError((e as Error).message);
+      const result = await response.json() as { day?: { name: string; exercises: unknown[] }; rationale?: string; readinessId?: string; error?: string };
+      if (!response.ok || !result.day) throw new Error(result.error || 'AI Coach could not generate a workout.');
+      await mutate({ type: 'proposeCustomWorkout', selectedMuscles: groups, replacesPlanId: regeneratePlanId, day: result.day, rationale: result.rationale, readinessId: result.readinessId });
+    } catch (error) {
+      member.setError(error instanceof Error ? error.message : 'AI Coach is unavailable.');
+    } finally {
+      setGenerating(false);
     }
   }
   function go() {
@@ -108,46 +169,30 @@ export default function MemberStudio() {
       return;
     }
     if (!profile) setProfileOpen(true);
-    else setScreen('My training');
+    else selectScreen('My training');
   }
-  function exportData() {
+  function exportData(csv = false) {
     const url = URL.createObjectURL(
       new Blob(
         [
-          JSON.stringify(
-            { exported: new Date().toISOString(), ...state },
-            null,
-            2,
-          ),
+          csv
+            ? exportCsv(state)
+            : JSON.stringify(
+                { exported: new Date().toISOString(), ...state },
+                null,
+                2,
+              ),
         ],
-        { type: 'application/json' },
+        { type: csv ? 'text/csv;charset=utf-8' : 'application/json' },
       ),
     );
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'sculptai-training-history.json';
+    a.download = csv ? 'sculptai-data.csv' : 'sculptai-training-history.json';
     a.click();
     URL.revokeObjectURL(url);
   }
-  async function coach(e: SyntheticEvent) {
-    e.preventDefault();
-    setCoachBusy(true);
-    setCoachAnswer('');
-    try {
-      const r = await fetch('/api/coach', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: coachMessage }),
-        }),
-        d = (await r.json()) as { error?: string; answer: string };
-      if (!r.ok) throw new Error(d.error);
-      setCoachAnswer(d.answer);
-    } catch (e) {
-      setCoachAnswer((e as Error).message);
-    } finally {
-      setCoachBusy(false);
-    }
-  }
+  if (!screenReady || loading) return <div className="future-app member-app member-boot" role="status">Opening SculptAI…</div>;
   return (
     <div className="future-app member-app">
       <div className="ambient-background" />
@@ -163,7 +208,7 @@ export default function MemberStudio() {
           <small>STUDIO / 02</small>
         </a>
         <nav aria-label="Main navigation">
-          <Tabs value={screen} onValueChange={(v) => setScreen(String(v))}>
+          <Tabs value={screen} onValueChange={(v) => selectScreen(String(v))}>
             <TabsList className="navigation-tabs">
               {screens.map((s) => (
                 <TabsTrigger key={s} value={s}>
@@ -180,7 +225,7 @@ export default function MemberStudio() {
               onClick={() => setProfileOpen(true)}
             >
               <span className="profile-chip">
-                {(profile?.name || user.name).slice(0, 1).toUpperCase()}
+                {state.profilePhoto ? <img src={state.profilePhoto} alt="" /> : (profile?.name || user.name).slice(0, 1).toUpperCase()}
               </span>
               <span>{profile?.name || 'Your account'}</span>
               <Settings2 size={16} />
@@ -198,6 +243,33 @@ export default function MemberStudio() {
         </div>
       </header>
       <main id="member-content">
+        {member.demo ? (
+          <div className="demo-banner" role="status">
+            <strong>Fictional demo · saved only in this tab</strong>
+            <label>
+              Example profile{' '}
+              <select
+                aria-label="Demo persona"
+                value={
+                  demoPersonas.includes(profile?.name ?? '')
+                    ? profile!.name
+                    : ''
+                }
+                onChange={(e) =>
+                  void mutate({ type: 'demoPersona', persona: e.target.value })
+                }
+              >
+                <option value="" disabled>
+                  Custom demo profile
+                </option>
+                {demoPersonas.map((p) => (
+                  <option key={p}>{p}</option>
+                ))}
+              </select>
+            </label>
+            <a href="/">Exit demo</a>
+          </div>
+        ) : null}
         <div className="context-row">
           <span>
             <i />
@@ -205,9 +277,6 @@ export default function MemberStudio() {
               ? `${profile.goal.toUpperCase()} · YOUR PERSONAL STUDIO`
               : 'YOUR SPACE TO BECOME'}
           </span>
-          <a href={v1} target="_blank" rel="noreferrer">
-            View Version 1<ArrowUpRight size={13} />
-          </a>
         </div>
         {error && (
           <div className="member-alert" role="alert">
@@ -220,7 +289,9 @@ export default function MemberStudio() {
         <div className="save-status" role="status" aria-live="polite">
           {saved ||
             (!loading && user
-              ? 'Signed in securely · your history is private'
+              ? member.demo
+                ? 'Fictional data · no account writes'
+                : 'Signed in · your personalized workouts'
               : '')}
         </div>
         <StudioHero
@@ -231,34 +302,25 @@ export default function MemberStudio() {
               ? 'Sign in to begin'
               : !profile
                 ? 'Set up your profile'
-                : active
-                  ? 'Resume your workout'
-                  : 'Open your training'
+                : 'Open your training'
           }
           summary={
             profile
-              ? `${profile.days} days a week. ${profile.minutes} minutes for yourself. Your next session starts with a little intention.`
-              : 'A training space that moves with you. Build your plan, track your lifts, and see your progress take shape.'
+              ? plan
+                ? `${profile.days} days a week. ${profile.minutes} minutes for yourself. Your next session starts with a little intention.`
+                : 'Choose your muscle groups and build your next workout.'
+              : 'Set up your profile and body measurements for personalized workouts.'
           }
         />
         {screen === 'Studio' && (
           <div className="member-grid stats-grid">
             <Summary
               label="YOUR PLAN"
-              value={plan ? `Version ${plan.version}` : 'Your fresh start'}
+              value={plan ? `Version ${plan.version}` : 'Build your workout'}
               detail={
                 plan
                   ? `${plan.days.length} training days · ${profile?.equipment}`
-                  : 'Set up your profile to build your first plan.'
-              }
-            />
-            <Summary
-              label="SAVED WORKOUTS"
-              value={completed.length}
-              detail={
-                active
-                  ? 'A workout is ready to resume.'
-                  : 'Every session starts a new chapter.'
+                  : 'Use your profile and readiness to generate a workout.'
               }
             />
             <Summary
@@ -299,142 +361,76 @@ export default function MemberStudio() {
               <div>
                 <span className="eyebrow">BUILD YOUR FOUNDATION</span>
                 <h1>Make today count.</h1>
+                {savedWorkouts.length > 0 && <a className="text-link" href="#saved-workouts">View saved workouts ({savedWorkouts.length})</a>}
                 <p>
                   {profile.days} days / week · {profile.minutes} min ·{' '}
                   {profile.equipment}
                 </p>
               </div>
-              <button
-                className="action-secondary"
-                disabled={busy}
-                onClick={() => propose({ type: 'plan' })}
-              >
-                <RefreshCw size={16} />
-                {plan ? 'Regenerate plan' : 'Create my plan'}
-              </button>
             </div>
-            {active ? (
-              <Workout
-                key={active.id}
-                session={active}
-                state={state}
-                mutate={mutate}
-                busy={busy}
-                onFinish={() =>
-                  setConfirm({
-                    title: 'Finish this workout?',
-                    description:
-                      'Completed sets count toward volume. Skipped or unfinished sets make this a partial workout. You can review it anytime in Insights.',
-                    action: {
-                      type: 'finish',
-                      sessionId: active.id,
-                      confirmed: true,
-                    },
-                  })
-                }
-              />
-            ) : plan ? (
-              <div className="member-grid plan-grid">
-                {plan.days.map((d, i) => (
-                  <Glass
-                    key={`${plan.id}-${d.name}`}
-                    className={i === nextDay ? 'next-workout' : ''}
-                  >
-                    <div className="card-heading">
-                      <span className="eyebrow">
-                        {i === nextDay ? 'UP NEXT' : `DAY ${i + 1}`}
-                      </span>
-                      <span className="small-pill">PLAN V{plan.version}</span>
-                    </div>
-                    <h2>{d.name}</h2>
-                    <div className="exercise-list">
-                      {d.exercises.map((e, index) => (
-                        <div key={e.name}>
-                          <div>
-                            <strong>{e.name}</strong>
-                            <small>
-                              {e.sets} × {e.reps} · {e.rest}s rest
-                            </small>
-                          </div>
-                          <details className="exercise-options">
-                            <summary aria-label={`Options for ${e.name}`}>
-                              •••
-                            </summary>
-                            <p>{e.cue}</p>
-                            {availableExercises(profile, e.pattern)
-                              .filter(
-                                (x) =>
-                                  !d.exercises.some((p) => p.name === x.name),
-                              )
-                              .map((x) => (
-                                <button
-                                  key={x.name}
-                                  disabled={busy}
-                                  onClick={() =>
-                                    propose({
-                                      type: 'substitute',
-                                      dayIndex: i,
-                                      exerciseIndex: index,
-                                      exercise: x.name,
-                                    })
-                                  }
-                                >
-                                  Swap to {x.name}
-                                </button>
-                              ))}
-                          </details>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="card-actions">
-                      <button
-                        className="action-primary"
-                        disabled={busy}
-                        onClick={() =>
-                          void mutate({ type: 'start', dayIndex: i })
-                        }
-                      >
-                        Start workout
-                        <ArrowUpRight size={17} />
-                      </button>
-                      <button
-                        className="text-link"
-                        disabled={busy}
-                        onClick={() =>
-                          propose({ type: 'shorten', dayIndex: i })
-                        }
-                      >
-                        Shorter version
-                      </button>
-                    </div>
-                  </Glass>
-                ))}
+            {!member.demo && <SafetyGate state={state} mutate={mutate} busy={busy || generating} />}
+            {!member.demo && cleared && <ReadinessCard beforePlan onReadyChange={(ready) => setReadinessEdited(!ready)} state={state} mutate={mutate} busy={busy || generating} />}
+            {<Glass className="muscle-builder">
+              <span className="eyebrow">BUILD YOUR WORKOUT</span>
+              <h2>What do you want to train?</h2>
+              <p>Pick one to four muscle groups or conditioning options, including Cardio and HIIT. AI Coach will use your goal, body metrics, available equipment and session time to put the exercises in order.</p>
+              {!readinessReady && <p role="status">Complete and save your readiness check above to choose your training focus.</p>}
+              <div className="muscle-options" aria-label="Muscle groups and conditioning">
+                {muscleGroups.map((group) => <button key={group} type="button"
+                  aria-pressed={selectedMuscles.includes(group)}
+                  className={selectedMuscles.includes(group) ? 'selected' : ''}
+                  disabled={(!readinessReady && !member.demo) || busy || generating || (!selectedMuscles.includes(group) && selectedMuscles.length >= 4)}
+                  onClick={() => setSelectedMuscles((current) => current.includes(group) ? current.filter((x) => x !== group) : [...current, group])}>{group}</button>)}
               </div>
-            ) : (
-              <Glass>
-                <Empty title="Your plan starts with you">
-                  <p>
-                    Your schedule and equipment shape the plan. Review it before
-                    saving.
-                  </p>
-                  <button
-                    className="action-primary"
-                    onClick={() => propose({ type: 'plan' })}
-                  >
-                    Build my plan
-                    <Plus size={17} />
-                  </button>
-                </Empty>
+              <p className="quiet-note">Choose up to four options per workout. Cardio uses steady, timed activity; HIIT uses short work and recovery intervals. You can create a different combination next time.</p>
+              <button className="action-primary" disabled={!readinessReady || member.demo || busy || generating || selectedMuscles.length === 0}
+                onClick={() => void generateWorkout()}>{generating ? 'AI Coach is building your workout…' : 'Generate my workout'} <ArrowRight size={17} /></button>
+              {member.demo && <p>Sign in to generate a workout with your own data.</p>}
+            </Glass>}
+            {state.draftWorkout && <Glass className="workout-draft">
+              <span className="eyebrow">AI COACH · REVIEW BEFORE SAVING</span>
+              <h2>{state.draftWorkout.day.name}</h2>
+              <p>{state.draftWorkout.rationale}</p>
+              <div className="exercise-guide-grid">{state.draftWorkout.day.exercises.map((exercise, index) => <ExerciseGuide key={exercise.name} exercise={exercise} index={index} />)}</div>
+              <p className="quiet-note">Start with an easy warm-up. Pick a load that leaves about 2–3 reps in reserve. This is a suggested session, not a completed workout.</p>
+              {error && <p role="alert">Workout not saved: {error}</p>}
+              <button className="action-primary" disabled={busy} onClick={() => void saveWorkout()}>{busy ? 'Saving workout…' : 'Save this workout'} <ArrowRight size={17} /></button>
+            </Glass>}
+            {plan?.templateVersion !== 'ai-muscle-session-v1' && !state.draftWorkout && !member.demo && <p className="quiet-note">Your selected workout will appear here after you review and save it. Add body measurements in Insights to give AI Coach more context.</p>}
+            <div className="saved-workouts-heading">
+              <h2 id="saved-workouts" ref={savedHeading} tabIndex={-1}>Saved workouts ({savedWorkouts.length})</h2>
+              {workoutSaved && savedWorkouts.length > 0 && <p role="status" className="workout-saved-confirmation">✓ Workout saved. You can find it here whenever you return to My training.</p>}
+              {savedWorkouts.length === 0 && <p>Your workouts will appear here after you select Save this workout.</p>}
+            </div>
+            {savedWorkouts.map(savedPlan => (
+              <Glass key={savedPlan.id} className="saved-workout">
+                <details className="saved-workout-details">
+                  <summary className="saved-workout-summary" aria-label={`${savedPlan.selectedMuscles?.join(" + ") || savedPlan.days[0].name} workout details`}>
+                    <div>
+                      <span className="saved-workout-badge">✓ Saved workout</span>
+                      <h2>{savedPlan.selectedMuscles?.join(" + ") || savedPlan.days[0].name}</h2>
+                      <p className="quiet-note">{savedPlan.days[0].exercises.length} exercises · Saved {displayTimestamp(savedPlan.created)}</p>
+                    </div>
+                    <span className="saved-workout-toggle"><span className="when-collapsed">Expand</span><span className="when-expanded">Collapse</span><span className="saved-workout-chevron" aria-hidden="true">⌄</span></span>
+                  </summary>
+                  <div className="saved-workout-body">
+                <div className="exercise-guide-grid">{savedPlan.days[0].exercises.map((exercise, index) => <ExerciseGuide key={exercise.name} exercise={exercise} index={index} />)}</div>
+                <div className="card-actions">
+                  <span className="saved-workout-badge">✓ Saved</span>
+                  <button className="action-primary" disabled={busy || generating || !readinessReady || member.demo} onClick={() => void generateWorkout(savedPlan.id)}>{generating ? 'Creating a variation…' : 'Regenerate workout'}</button>
+                  <button className="action-secondary" disabled={busy || generating} onClick={() => setConfirm({ title: 'Delete this workout?', description: 'This saved workout will be removed.', action: { type: 'deleteWorkout', planId: savedPlan.id, confirmed: true } })}>Delete workout</button>
+                </div>
+                {!readinessReady && <p>Save today’s readiness check above before regenerating.</p>}
+                  </div>
+                </details>
               </Glass>
-            )}
-            <p className="quiet-note">
-              Warm up at your own pace. Movement animations are illustrations,
-              not live form checks. Stop a movement that causes pain.
-            </p>
+            ))}
+
           </>
         )}
         {profile && screen === 'Insights' && (
           <Insights
+            asOf={renderedAt}
             state={state}
             onMetric={setMetric}
             onDelete={(m) =>
@@ -449,113 +445,24 @@ export default function MemberStudio() {
         {profile && screen === 'Fuel' && (
           <Fuel
             state={state}
-            onAdopt={() => {
-              try {
-                const t = nutrition({
-                  ...profile,
-                  weight: latest?.weight ?? profile.weight,
-                });
-                setConfirm({
-                  title: 'Adopt these nutrition targets?',
-                  description: `Estimated maintenance: ${Math.round(t.maintenance * 0.9)}–${Math.round(t.maintenance * 1.1)} kcal/day. Proposed target: ${Math.round(t.calories)} kcal · ${Math.round(t.protein)} g protein · ${Math.round(t.fat)} g fat · ${Math.round(t.carbs)} g carbohydrate. These are estimates, not a prescribed diet.`,
-                  action: { type: 'nutrition', confirmed: true },
-                });
-              } catch (e) {
-                member.setError((e as Error).message);
-              }
-            }}
+            busy={busy}
+            onSaveMealFoods={foods => mutate({ type: 'mealFoods', foods })}
+            onMealGenerated={member.receiveSnapshot}
+            demo={member.demo}
             onProfile={() => setProfileOpen(true)}
           />
         )}
-        {profile && screen === 'Coach' && (
-          <>
-            <div className="page-heading">
-              <div>
-                <span className="eyebrow">A LITTLE GUIDANCE</span>
-                <h1>Let’s find your next step.</h1>
-                <p>
-                  Ask about your saved training, nutrition estimates, or a
-                  shorter session.
-                </p>
-              </div>
-            </div>
-            <div className="member-grid coach-grid">
-              <Glass>
-                <span className="small-pill">TRAINING GUIDE · BETA</span>
-                <h2>What’s on your mind?</h2>
-                <div className="coach-prompts">
-                  {[
-                    'Summarize my training',
-                    'Explain my nutrition targets',
-                    'How should I progress?',
-                  ].map((m) => (
-                    <button
-                      className="action-secondary"
-                      key={m}
-                      onClick={() => setCoachMessage(m)}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
-                <form onSubmit={coach}>
-                  <label className="field">
-                    Your question
-                    <textarea
-                      required
-                      maxLength={2000}
-                      value={coachMessage}
-                      onChange={(e) => setCoachMessage(e.target.value)}
-                      placeholder="How is my training going?"
-                    />
-                  </label>
-                  <button
-                    className="action-primary"
-                    disabled={coachBusy || !coachMessage.trim()}
-                  >
-                    {coachBusy ? 'Thinking…' : 'Ask your guide'}
-                    <ArrowUpRight size={17} />
-                  </button>
-                </form>
-                {coachAnswer && (
-                  <div className="coach-response" role="status">
-                    {coachAnswer}
-                  </div>
-                )}
-              </Glass>
-              <Glass>
-                <h2>Built around your history.</h2>
-                <p>
-                  The guide explains saved records and conservative progression
-                  rules. Plan changes always need your review.
-                </p>
-                <p>
-                  Live AI responses need a separate service connection. The
-                  built-in guide remains available while that is being
-                  connected.
-                </p>
-                <button
-                  className="text-link"
-                  onClick={() => setScreen('My training')}
-                >
-                  Review your plan
-                  <ArrowRight size={15} />
-                </button>
-                <p className="quiet-note">
-                  For general adult fitness. Medical conditions, pain, and
-                  prescribed diets need professional care.
-                </p>
-              </Glass>
-            </div>
-          </>
+        {screen === 'Coach' && (
+          <CoachPanel
+            hasProfile={!!profile}
+            demo={member.demo}
+            onProfile={() => setProfileOpen(true)}
+          />
         )}
         <footer className="member-footer">
           <span>sculptai · Your pace. Your progress.</span>
           <div>
             <button onClick={() => setProfileOpen(true)}>Account & data</button>
-            <a href={v1} target="_blank" rel="noreferrer">
-              Version 1
-            </a>
           </div>
         </footer>
       </main>
@@ -565,9 +472,11 @@ export default function MemberStudio() {
             {profile ? 'Your account' : 'Welcome to your studio'}
           </DialogTitle>
           <DialogDescription>
-            {user
-              ? `Signed in as ${user.email}`
-              : 'Sign in with ChatGPT to save your profile and workouts.'}
+            {member.demo
+              ? 'Fictional profile stored only in this browser tab.'
+              : user
+                ? `Signed in as ${user.email}`
+                : 'Sign in with ChatGPT to save your profile and workouts.'}
           </DialogDescription>
           {error && (
             <p role="alert" className="form-error">
@@ -578,18 +487,31 @@ export default function MemberStudio() {
             <>
               <ProfileForm
                 initial={profile ?? blankProfile}
+                photo={state.profilePhoto}
+                onPhotoChange={async photo => { if (!(await mutate({ type: 'profilePhoto', photo }))) throw new Error('The photo could not be saved. Please try again.'); }}
+                currentWeight={latest?.weight ?? profile?.weight}
+                currentWeightDate={latest?.date}
                 busy={busy}
                 onSave={async (p) => {
                   if (await mutate({ type: 'profile', profile: p })) {
                     setProfileOpen(false);
-                    setScreen('My training');
+                    if (!profile) selectScreen('My training');
                   }
                 }}
               />
               <div className="account-tools">
-                <button className="action-secondary" onClick={exportData}>
+                <button
+                  className="action-secondary"
+                  onClick={() => exportData()}
+                >
                   <Download size={16} />
                   Export my data
+                </button>
+                <button
+                  className="action-secondary"
+                  onClick={() => exportData(true)}
+                >
+                  Export CSV
                 </button>
                 <a
                   className="action-secondary"
@@ -606,8 +528,9 @@ export default function MemberStudio() {
                     setDeletion('');
                     setConfirm({
                       title: 'Delete all SculptAI data?',
-                      description:
-                        'This permanently removes your profile, plans, check-ins, workout logs and nutrition history from Version 2. Your ChatGPT account remains available. Export your history first if you need a copy.',
+                      description: member.demo
+                        ? 'This clears only the fictional demo data in this browser tab. Your saved member records stay unchanged.'
+                        : 'This removes your active SculptAI profile, plans, check-ins, workouts, readiness, consent, reviews and receipts. Your sign-in account and exported copies remain. Hosted backup retention is not finalized for this testing build.',
                       action: { type: 'deleteData' },
                     });
                   }}

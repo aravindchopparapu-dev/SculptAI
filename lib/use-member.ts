@@ -1,21 +1,27 @@
 'use client';
+import { applyAction } from './actions';
+import { createDemo } from './demo';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { emptyState, type State } from './fitness';
 import type { Action } from './actions';
 type ApiSnapshot = Snapshot & { error?: string };
-type Snapshot = {
+export type MemberSnapshot = {
   state: State;
   revision: number;
   user?: { name: string; email: string };
 };
-export function useMember() {
-  const [snapshot, setSnapshot] = useState<Snapshot>({
+type Snapshot = MemberSnapshot;
+export function useMember(initialSnapshot: MemberSnapshot | null = null) {
+  const [snapshot, setSnapshot] = useState<Snapshot>(initialSnapshot ?? {
     state: emptyState(),
     revision: 0,
   });
   const current = useRef(snapshot),
     queue = useRef(Promise.resolve());
-  const [loading, setLoading] = useState(true),
+  const initialized = useRef(Boolean(initialSnapshot));
+  const [demo, setDemo] = useState(false);
+  const demoRef = useRef(false);
+  const [loading, setLoading] = useState(!initialSnapshot),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [saved, setSaved] = useState('');
@@ -27,6 +33,25 @@ export function useMember() {
     setLoading(true);
     setError('');
     try {
+      if (new URLSearchParams(window.location.search).get('demo') === '1') {
+        demoRef.current = true;
+        setDemo(true);
+        const raw = sessionStorage.getItem('sculptai-spec-demo');
+        let state = createDemo();
+        if (raw) {
+          try {
+            state = JSON.parse(raw);
+          } catch {
+            /* Start a clean fictional demo. */
+          }
+        }
+        update({
+          state,
+          revision: 0,
+          user: { name: 'Demo explorer', email: 'fictional-demo@example.test' },
+        });
+        return;
+      }
       const r = await fetch('/api/state', { cache: 'no-store' }),
         d = (await r.json()) as ApiSnapshot;
       if (r.status === 401) {
@@ -44,6 +69,8 @@ export function useMember() {
     }
   }, [update]);
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
     void refresh();
   }, [refresh]);
   useEffect(() => {
@@ -58,6 +85,26 @@ export function useMember() {
       const run = async () => {
         setError('');
         setSaved('Saving…');
+        if (demoRef.current) {
+          try {
+            const state =
+              action.type === 'demoPersona'
+                ? createDemo(String(action.persona))
+                : applyAction(current.current.state, action);
+            sessionStorage.setItem('sculptai-spec-demo', JSON.stringify(state));
+            update({
+              ...current.current,
+              state,
+              revision: current.current.revision + 1,
+            });
+            setSaved('Demo changes saved in this tab');
+            return true;
+          } catch (e) {
+            setError(e instanceof Error ? e.message : 'Unable to save demo.');
+            setSaved('Demo change not saved');
+            return false;
+          }
+        }
         const body = JSON.stringify({
           revision: current.current.revision,
           operationId: crypto.randomUUID(),
@@ -105,6 +152,7 @@ export function useMember() {
   );
   return {
     ...snapshot,
+    demo,
     loading,
     busy,
     error,
@@ -112,5 +160,6 @@ export function useMember() {
     mutate,
     refresh,
     setError,
+    receiveSnapshot: update,
   };
 }

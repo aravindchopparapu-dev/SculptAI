@@ -35,11 +35,11 @@ export function coachReply(state: State, message: string): string {
       return 'Current nutrition eligibility or formula inputs are incomplete. Previous targets are historical records; consult a qualified clinician or dietitian if you need a prescribed diet. Training logs remain available.';
     }
     const t = state.targets.at(-1);
-    if (t)
-      return `Your adopted target is ${Math.round(t.calories)} kcal, ${Math.round(t.protein)} g protein, ${Math.round(t.fat)} g fat and ${Math.round(t.carbs)} g carbohydrate per day. It was calculated on ${t.created.slice(0, 10)} using ${t.inputs.weight} kg and your saved profile. Fuel shows the method and sources. Changes to your weight do not automatically replace this target.`;
+    if (t && p.targetWeight && t.inputs.targetWeight === p.targetWeight)
+      return `Your current daily goal is ${Math.round(t.calories)} kcal, ${Math.round(t.protein)} g protein, ${Math.round(t.fat)} g fat and ${Math.round(t.carbs)} g carbohydrate. Estimated current maintenance is ${Math.round(t.maintenance)} kcal/day. These estimates use your latest check-in weight of ${t.inputs.weight} kg and target of ${t.inputs.targetWeight} kg. Fuel recalculates after new check-ins.`;
     try {
       nutrition(p);
-      return 'Your inputs can be used for an estimate. Open Fuel to calculate, review and explicitly adopt your first targets.';
+      return p.targetWeight ? 'Open Fuel to see your current maintenance estimate and target calorie goal.' : 'Open Profile to add a target weight. Fuel will then show estimated current maintenance and a separate daily calorie goal.';
     } catch {
       return 'Nutrition estimates are unavailable until the formula inputs and eligibility are complete. You can keep logging workouts without a calorie target.';
     }

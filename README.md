@@ -1,56 +1,55 @@
-# SculptAI Studio / 02
+# SculptAI
 
-Version 2 is the selected product direction. Version 1 remains a separate, preserved website.
+SculptAI Version 2 is the active product. The former Version 1 app is retired.
 
-## Private testing beta
+## Current features
 
-ChatGPT sign-in identifies the member. The server validates every write and reads only that member's D1 document. Profile, plan versions, measurements, workouts, and adopted nutrition targets survive browser refreshes. A revision check prevents one tab silently overwriting another; repeated network requests use an idempotency identifier.
+- Member sign-in, required profile/body metrics, target weight and profile photo.
+- AI Coach grounded in the signed-in member's saved profile, current measurements and goals.
+- Readiness checks before personalized workout generation, muscle-group selection plus Cardio and HIIT, saved workouts, deletion and regeneration. Workout logging is outside the current UI scope.
+- Fuel targets based on profile and check-ins, target history and an on-demand explanation of the calculations.
+- Meal plans using saved breakfast, lunch and dinner foods, optional snacks, editable choices and explained food suggestions. Familiar serving units are used where appropriate.
+- Insights with the profile starting weight as the baseline, persistent tab navigation and a 3D studio.
 
-The interface keeps the approved midnight glass styling and real rigged 3D athlete. The model is 1,087,500 bytes, down from 15,479,764 bytes. Artwork totals about 176 KB. Original source assets are preserved in assets/source and excluded from the served public assets. Animation is deferred until the interface paints, capped at 30 fps, and skips hidden/offscreen rendering. Reduced motion and data saver are respected. Device GPU capability still affects performance; no universal zero-lag guarantee is made.
+## Run locally
 
-## Member journeys
+Use Node 22.13 or later. In the VS Code terminal, run:
 
-- Sign in / sign out, adult onboarding, editable preferences, unit conversion, data export, confirmed removal of all app data.
-- Review and adopt deterministic training plans, retain versions, substitute compatible exercises, prepare shorter sessions.
-- Start/resume a workout, save reps/load/effort, skip sets, run a rest timer, finish complete or partial, review prior lifts and history.
-- Add/edit/delete dated check-ins, view weight trends, same-repetition strength time series, accessible values, schedule benchmarks and best lifts.
-- Review and adopt nutrition estimates with eligibility checks, preserved inputs, method and source links. Four portioned meal examples use an eight-food USDA SR Legacy reference subset, explicit raw/cooked weights, diet/exclusion matching and scaled estimated totals. They are examples, not a daily food log or therapeutic menu.
-- Use the built-in guide with real saved context. A server-side OpenAI Responses adapter is prepared, bounded to 20 requests per member/hour, with a 15-second timeout and safe fallback. No live provider is configured or verified yet. Neither the guide nor provider can mutate member data.
+```sh
+pnpm install --frozen-lockfile
+pnpm dev --port 3001
+```
 
-## Run and validate
+Open http://localhost:3001/. The parent folder also contains Start SculptAI.command.
 
-Use Node 22.13+ (this workspace uses bundled Node 24), npm ci, then npm run dev -- --port 3001. Use npm test, npm run lint, and npm run build. Types are checked by the configured lint pipeline; TypeScript noEmit is also available.
+## Validate
 
-Generate schema migrations with npm run db:generate. Local initialization uses Wrangler d1 execute DB --local --persist-to .wrangler/state --file drizzle/0000_glossy_ironclad.sql with the development D1 binding configuration. Never execute local fixture scripts against production. Sites applies packaged Drizzle migrations on deployment; previously applied migrations are immutable.
+```sh
+pnpm test
+pnpm exec tsc --noEmit
+pnpm run lint
+pnpm run build
+```
 
-scripts/browser-journey.cjs runs the local UI journey with a clearly named SculptAI QA fixture and refuses to overwrite other local profiles. scripts/browser-regression.cjs covers phone separation, keyboard controls, stale writes and cross-origin requests. scripts/test-viewer.cjs serves actual test screenshots at localhost:3002. scripts/browser-insights.cjs covers strength selection, accessible tables, meal scaling, source links and phone layouts. Test outputs are ignored and never published.
+See docs/TESTING-GUIDE.md for browser checks. Some older scripts test retired flows; do not seed test fixtures into real member accounts.
 
-## AI setup and privacy
+## AI and member data
 
-See [AI-SETUP.md](AI-SETUP.md) for the secure connection steps requested by the user. No key, billing setup or real provider test has been performed.
+Store OPENAI_API_KEY only in ignored local environment files or hosted server secrets. OPENAI_MODEL optionally overrides the configured default. See AI-SETUP.md. Never commit API keys, local databases or account exports.
 
-Provision OPENAI_API_KEY as a secret and OPENAI_MODEL as a model ID through an authorized Sites environment-variable workflow. These are optional and must never be exposed in browser code, source, messages or Git. An empty configuration uses only the built-in guide. Live integration acceptance requires a real configured account and explicit live testing; mocked adapter tests are not evidence of a live connection.
+Local development and Sites have separate D1 databases. Deploying code preserves hosted records; it does not upload local profiles. The server validates member writes and uses revision checks to prevent stale overwrites. The current bounded member document is intended for private testing; broader release needs operational backup/restore and multi-user acceptance.
 
-AI context excludes names, emails, age, sex, raw measurement history and free-text notes. It includes goal/equipment, current plan, recent completed sets and eligible adopted nutrition targets. Provider response storage is disabled, which does not imply absence of provider operational retention. The app stores no AI conversation history.
+## Publishing
 
-## Architecture and limits
+Use the existing V2 project in .openai/hosting.json and preserve its access settings. Build and verify the source, then publish through the Sites workflow. GitHub source is maintained at https://github.com/aravindchopparapu-dev/SculptAI. GitHub and Sites use separate source histories; a GitHub push alone does not update Sites.
 
-app/member-studio.tsx coordinates the visible journey; separate form/workout/insight/fuel components keep the interface maintainable. lib/fitness.ts and lib/actions.ts hold deterministic rules. lib/repository.ts uses raw D1 prepared statements and compare-and-swap. app/athlete-scene.tsx owns the isolated GPU renderer and resource cleanup.
-
-The private MVP uses one bounded member document (1.5 MB history cap). Export provides a portable backup; automated backup/restore and normalized history tables need evaluation before a wider launch. Personal records are not shared between V1 and V2. Multi-account isolation is tested through the repository; hosted multi-user acceptance needs separate identities before sharing beyond the owner.
-
-A small read-only WebMCP summary tool is feature-detected. The available test browser does not support WebMCP, so that contract is unverified; it is not necessary to the normal member journey.
-
-Framework security fixes upgraded React/React DOM/RSC to 19.2.8, Vinext to beta.9, Vite to 8.2.2 and the RSC plugin to 0.5.34. Undici is pinned to 7.29.1. The production dependency audit reports zero advisories on 2026-09-09; development tooling still reports advisories and is not part of the deployed Worker. This is not a full security audit or public production readiness claim.
+Applied database migrations are immutable. The retired V1 app is not a dependency of this project.
 
 ## Assets
 
 Quaternius Superhero Male from Universal Base Characters, CC0 1.0. Creator: https://quaternius.com/packs/universalbasecharacters.html. Official download: https://quaternius.itch.io/universal-base-characters. License retained in public/LICENSE-athlete.txt. Original generated gym and athlete artwork is preserved alongside optimized WebP copies. The athlete animation is an illustrative movement study, not validated biomechanics or form assessment.
 
-## Release
-
-Keep the existing V2 Sites identity in .openai/hosting.json. Build, commit, push, package and privately deploy through Sites. Retain the previous version for rollback. Never repoint this checkout to V1. Deployment and acceptance results are tracked in DEVELOPMENT.md and the root VERSION-COMPARISON.md.
 
 ## Reference data
 
-lib/food-data.ts is generated by scripts/import-food-data.py from the official USDA FoodData Central SR Legacy April 2018 CSV archive. It retains exact FDC identifiers, per-100g values, publication date, archive URL and SHA256. Food totals are estimated from these source values; they are not forced to match target macro energy calculations. The large source archive remains in ignored local outputs; only the eight needed records ship.
+lib/food-data.ts retains the USDA FoodData Central SR Legacy records used by the reference meal calculations. AI meal estimates and suggested serving sizes are estimates; branded product labels can differ. Asset attribution and source references remain in the repository.

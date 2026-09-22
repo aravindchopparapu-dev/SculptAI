@@ -32,6 +32,10 @@ export const movements = [
     cue: 'Steady effort. A little more possibility.',
     minutes: 10,
   },
+  { id: 'barbell-squat', name: 'Barbell squat', area: 'Legs & glutes', tag: 'Strength', sets: 3, reps: 8, load: 40, cue: 'Keep the bar supported across your upper back.', minutes: 12 },
+  { id: 'bench', name: 'Barbell bench press', area: 'Chest & triceps', tag: 'Press', sets: 3, reps: 8, load: 40, cue: 'Lower with control and press above your chest.', minutes: 12 },
+  { id: 'deadlift', name: 'Deadlift', area: 'Hips, back & legs', tag: 'Hinge', sets: 3, reps: 6, load: 40, cue: 'Keep the bar close as your hips and knees extend.', minutes: 12 },
+  { id: 'triceps', name: 'Triceps extension', area: 'Triceps', tag: 'Extend', sets: 3, reps: 10, load: 10, cue: 'Keep your upper arms steady during the extension.', minutes: 8 },
 ] as const;
 export type Movement = (typeof movements)[number]['id'];
 export type DemoSession = {

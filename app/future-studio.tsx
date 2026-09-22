@@ -49,8 +49,6 @@ import {
   type Movement,
 } from '@/lib/studio';
 const AthleteScene = lazy(() => import('./athlete-scene'));
-const v1 =
-  'https://sculptai-fitness-workspace.aravindchopparapu-ch.chatgpt.site';
 const screens = ['Studio', 'My training', 'Insights', 'Fuel', 'Coach'];
 function Glass({
   children,
@@ -208,9 +206,6 @@ export default function FutureStudio() {
           <span>
             <i /> YOUR SPACE TO BECOME
           </span>
-          <a href={v1} target="_blank" rel="noreferrer">
-            Compare Version 1 <ArrowUpRight size={13} />
-          </a>
         </div>
         {(screen === 'Studio' || screen === 'My training') && (
           <>
@@ -1079,7 +1074,7 @@ export default function FutureStudio() {
           </DialogTitle>
           <DialogDescription>
             {detail === 'preview'
-              ? 'A separate visual concept for your review. Version 1 remains available and unchanged.'
+              ? 'A visual concept for your review.'
               : detail === 'readiness'
                 ? 'The readiness number is sample design data. It is not a health assessment.'
                 : 'A flexible example, not a personalized diet.'}

@@ -27,7 +27,7 @@ export default function Workout({
 }) {
   const profile = state.profile!,
     plan = state.plans.find((p) => p.id === session.planId)!,
-    day = plan.days[session.dayIndex],
+    day = session.prescribed ?? plan.days[session.dayIndex],
     done = session.sets.filter((x) => x.done).length;
   const [notes, setNotes] = useState(session.notes),
     [rest, setRest] = useState(0);
@@ -62,6 +62,14 @@ export default function Workout({
             <Check size={16} />
           </button>
         </div>
+      </Glass>
+      <Glass>
+        <h2>Start with a five-minute warm-up</h2>
+        <p>
+          Use easy movement, then rehearse today’s movements with a comfortable
+          range and light resistance. Keep the prescribed rest; stop any
+          movement that hurts.
+        </p>
       </Glass>
       {rest > 0 && (
         <div className="rest-timer" role="timer">
@@ -104,6 +112,12 @@ export default function Workout({
               </p>
             );
           })()}
+          <PainControls
+            session={session}
+            exercise={e.name}
+            mutate={mutate}
+            busy={busy}
+          />
           <div className="set-labels">
             <span>SET</span>
             <span>REPS</span>
@@ -112,7 +126,10 @@ export default function Workout({
             <span>STATUS</span>
           </div>
           {session.sets.map((s, index) =>
-            s.exercise === e.name ? (
+            s.exercise === e.name &&
+            !session.painEvents?.some(
+              (p) => p.severity === 'urgent' || p.exercise === e.name,
+            ) ? (
               <SetEntry
                 key={`${session.id}-${index}`}
                 set={s}
@@ -312,5 +329,82 @@ function SetEntry({
         )}
       </div>
     </div>
+  );
+}
+
+function PainControls({
+  session,
+  exercise,
+  mutate,
+  busy,
+}: {
+  session: Session;
+  exercise: string;
+  mutate: Mutate;
+  busy: boolean;
+}) {
+  const [severity, setSeverity] = useState('pain'),
+    [note, setNote] = useState('');
+  if (
+    session.painEvents?.some(
+      (p) => p.severity === 'urgent' || p.exercise === exercise,
+    )
+  )
+    return (
+      <p className="form-error" role="alert">
+        Movement stopped and report saved. Unfinished sets are skipped. Finish
+        the session if needed. Seek guidance for persistent, severe or sudden
+        pain; contact local emergency services for current chest pain, fainting
+        or severe breathing difficulty.
+      </p>
+    );
+  return (
+    <details className="pain-controls">
+      <summary>Report pain and stop this movement</summary>
+      <form
+        className="member-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void mutate({
+            type: 'pain',
+            sessionId: session.id,
+            exercise,
+            severity,
+            note,
+          });
+        }}
+      >
+        <label className="field">
+          Symptom level
+          <select
+            value={severity}
+            onChange={(e) => setSeverity(e.target.value)}
+          >
+            <option value="pain">Movement causes pain</option>
+            <option value="urgent">
+              Urgent symptoms — stop the entire session
+            </option>
+          </select>
+        </label>
+        {severity === 'urgent' && (
+          <p role="alert">
+            For current chest pain, fainting or severe breathing difficulty,
+            contact local emergency services. Saving this report stops the
+            entire session.
+          </p>
+        )}
+        <label className="field">
+          Pain note (optional)
+          <input
+            maxLength={500}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+        </label>
+        <button className="action-secondary" disabled={busy}>
+          Save pain report and stop
+        </button>
+      </form>
+    </details>
   );
 }

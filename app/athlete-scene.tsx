@@ -191,6 +191,33 @@ export default function AthleteScene(props: Props) {
     }
     const leftWeight = dumbbell(),
       rightWeight = dumbbell();
+    const barbell = new THREE.Group();
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 1.9, 24), metal);
+    bar.rotation.z = Math.PI / 2;
+    barbell.add(bar);
+    for (const side of [-1, 1]) {
+      for (const x of [0.68, 0.75]) {
+        const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.055, 40), rubber);
+        plate.rotation.z = Math.PI / 2;
+        plate.position.x = side * x;
+        plate.castShadow = true;
+        barbell.add(plate);
+      }
+    }
+    scene.add(barbell);
+    const bench = new THREE.Group();
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.1, 1.25), rubber);
+    pad.position.set(0, 0.48, -0.35);
+    bench.add(pad);
+    for (const z of [-0.8, 0.1]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.43, 0.08), metal);
+      leg.position.set(0, 0.215, z);
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.05, 0.12), metal);
+      foot.position.set(0, 0.025, z);
+      bench.add(leg, foot);
+    }
+    scene.add(bench);
+    barbell.visible = bench.visible = false;
     const particles = new THREE.BufferGeometry();
     const points = [];
     for (let i = 0; i < 38; i++) {
@@ -287,7 +314,6 @@ diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.72,1.05,1.19),uFo
         scene.add(actor);
         actor.updateMatrixWorld(true);
         dirty = true;
-        setState('ready');
       },
       undefined,
       () => {
@@ -362,6 +388,33 @@ diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.72,1.05,1.19),uFo
       aim('upperarm_' + side, 'lowerarm_' + side, joint.clone().sub(shoulder));
       aim('lowerarm_' + side, 'hand_' + side, target.clone().sub(joint));
     }
+    function solveLeg(
+      side: 'l' | 'r',
+      target: THREE.Vector3,
+      bend: THREE.Vector3,
+    ) {
+      actor!.updateMatrixWorld(true);
+      const shoulder = worldPoint('thigh_' + side),
+        elbow = worldPoint('calf_' + side),
+        wrist = worldPoint('foot_' + side);
+      const l1 = shoulder.distanceTo(elbow),
+        l2 = elbow.distanceTo(wrist),
+        direction = target.clone().sub(shoulder),
+        d = Math.min(direction.length(), l1 + l2 - 0.005),
+        axis = direction.normalize();
+      const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d),
+        h = Math.sqrt(Math.max(0, l1 * l1 - a * a));
+      const pole = bend
+        .clone()
+        .addScaledVector(axis, -bend.dot(axis))
+        .normalize();
+      const joint = shoulder
+        .clone()
+        .addScaledVector(axis, a)
+        .addScaledVector(pole, h);
+      aim('thigh_' + side, 'calf_' + side, joint.clone().sub(shoulder));
+      aim('calf_' + side, 'foot_' + side, target.clone().sub(joint));
+    }
     let time = 0,
       prev = performance.now(),
       frame = 0,
@@ -369,6 +422,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.72,1.05,1.19),uFo
     let cameraTransition = false;
     let visible = true;
     let dirty = true;
+    let displayed = false;
     let lastSettings = '';
     const onControlChange = () => {
       dirty = true;
@@ -427,6 +481,12 @@ diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.72,1.05,1.19),uFo
           b.quaternion.copy(bind[name]);
           b.position.copy(positions[name]);
         }
+        actor.rotation.set(0, 0, 0);
+        actor.position.set(0, 0, 0);
+        actor.updateMatrixWorld(true);
+        const standingFeet = { l: bones.foot_l.getWorldQuaternion(new THREE.Quaternion()), r: bones.foot_r.getWorldQuaternion(new THREE.Quaternion()) };
+        barbell.visible = ['barbell-squat', 'bench', 'deadlift'].includes(settings.movement);
+        bench.visible = settings.movement === 'bench';
         const phase = (1 - Math.cos(time * 1.45)) * 0.5;
         const breath = Math.sin(time * 1.1) * 0.008;
         if (settings.movement === 'curl') {
@@ -451,12 +511,30 @@ diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.72,1.05,1.19),uFo
             new THREE.Vector3(-0.39 + phase * 0.12, 1.57 + phase * 0.35, 0.055),
             new THREE.Vector3(-1, -0.5, 0),
           );
+        } else if (settings.movement === 'triceps') {
+          const target = new THREE.Vector3(0, 1.98 - phase * 0.42, -0.03 - phase * 0.18);
+          solveArm('l', target.clone().add(new THREE.Vector3(0.04, 0, 0)), new THREE.Vector3(0.25, 1, -0.1));
+          solveArm('r', target.clone().add(new THREE.Vector3(-0.04, 0, 0)), new THREE.Vector3(-0.25, 1, -0.1));
+        } else if (settings.movement === 'bench') {
+          actor.rotation.x = -Math.PI / 2;
+          actor.position.set(0, 0.62, 0.67);
+          solveLeg('l', new THREE.Vector3(0.22, 0.08, 0.45), new THREE.Vector3(0, 1, 0.5));
+          solveLeg('r', new THREE.Vector3(-0.22, 0.08, 0.45), new THREE.Vector3(0, 1, 0.5));
+          actor.updateMatrixWorld(true);
+          for (const side of ['l', 'r'] as const) {
+            actor.updateMatrixWorld(true);
+            bones['foot_' + side].quaternion.copy(bones['foot_' + side].parent!.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(standingFeet[side]));
+          }
+          const chest = worldPoint('spine_03');
+          barbell.position.set(0, chest.y + 0.15 + phase * 0.4, chest.z + 0.03);
+          solveArm('l', barbell.position.clone().add(new THREE.Vector3(0.36, 0, 0)), new THREE.Vector3(0.7, -0.3, 0.2));
+          solveArm('r', barbell.position.clone().add(new THREE.Vector3(-0.36, 0, 0)), new THREE.Vector3(-0.7, -0.3, 0.2));
         } else {
           turn('upperarm_l', zAxis, -1.17);
           turn('upperarm_r', zAxis, 1.17);
           turn('lowerarm_l', xAxis, 1.7);
           turn('lowerarm_r', xAxis, 1.7);
-          turn('spine_01', xAxis, 0.1 + phase * 0.12);
+          turn('spine_01', xAxis, settings.movement === 'deadlift' ? 0.03 : 0.1 + phase * 0.12);
           actor.updateMatrixWorld(true);
           const feet = { l: worldPoint('foot_l'), r: worldPoint('foot_r') };
           const feetRotation = {
@@ -468,9 +546,10 @@ diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.72,1.05,1.19),uFo
               .parent!.getWorldQuaternion(new THREE.Quaternion())
               .invert();
             bones.pelvis.position.add(
-              new THREE.Vector3(0, -phase * 0.29, 0).applyQuaternion(q),
+              new THREE.Vector3(0, -phase * (settings.movement === 'deadlift' ? 0.3 : 0.29), settings.movement === 'deadlift' ? -phase * 0.18 : 0).applyQuaternion(q),
             );
           }
+          if (settings.movement === 'deadlift') turn('pelvis', xAxis, phase * 0.9);
           actor.updateMatrixWorld(true);
           for (const side of ['l', 'r'] as const) {
             const hip = worldPoint('thigh_' + side),
@@ -513,6 +592,15 @@ diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.72,1.05,1.19),uFo
             new THREE.Vector3(-0.8, -1, 0.3),
           );
         }
+        if (settings.movement === 'barbell-squat') {
+          barbell.position.copy(worldPoint('spine_03')).add(new THREE.Vector3(0, 0.16, -0.075));
+          solveArm('l', barbell.position.clone().add(new THREE.Vector3(0.42, 0, 0)), new THREE.Vector3(0.6, -0.6, -0.4));
+          solveArm('r', barbell.position.clone().add(new THREE.Vector3(-0.42, 0, 0)), new THREE.Vector3(-0.6, -0.6, -0.4));
+        } else if (settings.movement === 'deadlift') {
+          barbell.position.set(0, 0.76 - phase * 0.5, 0.2);
+          solveArm('l', barbell.position.clone().add(new THREE.Vector3(0.26, 0, 0)), new THREE.Vector3(0.1, 0, -1));
+          solveArm('r', barbell.position.clone().add(new THREE.Vector3(-0.26, 0, 0)), new THREE.Vector3(-0.1, 0, -1));
+        }
         for (const [name] of Object.entries(bones)) {
           if (/(index|middle|ring|pinky)_0[123]_/i.test(name))
             turn(name, zAxis, name.endsWith('_l') ? -0.9 : 0.9);
@@ -520,7 +608,11 @@ diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.72,1.05,1.19),uFo
         actor.updateMatrixWorld(true);
         placeWeight(leftWeight, 'hand_l');
         placeWeight(rightWeight, 'hand_r');
-        if (settings.movement === 'squat') {
+        if (barbell.visible) {
+          leftWeight.visible = rightWeight.visible = false;
+          if (settings.movement !== 'barbell-squat') barbell.position.copy(worldPoint('hand_l').lerp(worldPoint('middle_01_l'), 0.78)).add(worldPoint('hand_r').lerp(worldPoint('middle_01_r'), 0.78)).multiplyScalar(0.5);
+        }
+        if (settings.movement === 'squat' || settings.movement === 'triceps') {
           rightWeight.visible = false;
           const midpoint = worldPoint('hand_l')
             .add(worldPoint('hand_r'))
@@ -546,6 +638,10 @@ diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.72,1.05,1.19),uFo
       motes.rotation.y = time * 0.025;
       controls.update();
       composer.render();
+      if (actor && !displayed) {
+        displayed = true;
+        setState('ready');
+      }
     }
     const resize = () => {
       const w = el.clientWidth,
@@ -585,21 +681,16 @@ diffuseColor.rgb = mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.72,1.05,1.19),uFo
   return (
     <div
       ref={mount}
-      className="athlete-canvas"
+      className={`athlete-canvas scene-${state}`}
       role="img"
       aria-label="Animated three dimensional human athlete lifting dumbbells on a luminous training platform. Drag to rotate."
     >
-      {state !== 'ready' && (
+      {state === 'fallback' && (
         <img
           className="model-fallback"
           src="/athlete-art.webp"
           alt="Generated athlete portrait used while the 3D scene loads or when WebGL is unavailable"
         />
-      )}
-      {state === 'loading' && (
-        <span className="model-status" role="status">
-          Loading the human movement study…
-        </span>
       )}
       {state === 'fallback' && (
         <span className="model-status">

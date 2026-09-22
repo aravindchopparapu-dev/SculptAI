@@ -1,6 +1,7 @@
 'use client';
+import { displayTimestamp } from '@/lib/display-date';
 import { useEffect, useId, useRef, useState } from 'react';
-export type TrendPoint = { id: string; date: string; value: number };
+export type TrendPoint = { id: string; date: string | null; value: number; caption?: string };
 export function TrendChart({
   points,
   label,
@@ -23,23 +24,24 @@ export function TrendChart({
     return () => observer.disconnect();
   }, [hasPoints]);
   if (!points.length) return <p>No entries in this period.</p>;
-  const data = [...points].sort(
-    (a, b) => Date.parse(a.date) - Date.parse(b.date),
+  const data = [...points].sort((a, b) =>
+    a.date === null ? -1 : b.date === null ? 1 : Date.parse(a.date) - Date.parse(b.date),
   );
   const values = data.map((p) => p.value),
-    dates = data.map((p) => Date.parse(p.date));
+    dated = data.filter((p) => p.date !== null),
+    dates = dated.map((p) => Date.parse(p.date!)),
+    hasBaseline = data[0].date === null;
   const low = Math.min(...values),
     high = Math.max(...values),
     pad = Math.max(1, (high - low) * 0.15);
   const min = Math.max(0, low - pad),
     max = high + pad;
   const start = dates[0],
-    end = dates.at(-1)!;
-  const xy = data.map((p, i) => ({
-    x:
-      start === end
-        ? 60 + (width - 85) / 2
-        : 60 + ((dates[i] - start) / (end - start)) * (width - 85),
+    end = dates.at(-1);
+  const xy = data.map((p) => ({
+    x: p.date === null ? 60 : hasBaseline
+      ? start === end ? width - 15 : 100 + ((Date.parse(p.date) - start) / (end! - start)) * (width - 115)
+      : start === end ? 60 + (width - 85) / 2 : 60 + ((Date.parse(p.date) - start) / (end! - start)) * (width - 85),
     y: 174 - ((p.value - min) / (max - min)) * 145,
   }));
   return (
@@ -50,7 +52,7 @@ export function TrendChart({
         viewBox={`0 0 ${width} 210`}
         style={{ height: 210 }}
         role="img"
-        aria-label={`${label}: ${data.length} recorded entries. Values are listed below the chart.`}
+        aria-label={`${label}: ${data.length} points${hasBaseline ? ', including profile starting weight' : ''}. Values are listed below the chart.`}
       >
         <defs>
           <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
@@ -94,22 +96,21 @@ export function TrendChart({
         {xy.map((p, i) => (
           <circle key={data[i].id} cx={p.x} cy={p.y} r="4" fill="#b7efff">
             <title>
-              {data[i].date.slice(0, 10)}: {data[i].value} {unit}
+              {`${data[i].caption || data[i].date?.slice(0, 10) || 'Starting weight'}: ${data[i].value} ${unit}`}
             </title>
           </circle>
         ))}
       </svg>
       <div className="chart-range">
         <span>
-          {data[0].date.slice(0, 10)} · {values[0]} {unit}
+          {data[0].caption || data[0].date?.slice(0, 10) || 'Starting weight'} · {values[0]} {unit}
         </span>
         <span>
-          {data.at(-1)!.date.slice(0, 10)} · {values.at(-1)} {unit}
+          {data.at(-1)!.caption || data.at(-1)!.date?.slice(0, 10) || 'Starting weight'} · {values.at(-1)} {unit}
         </span>
       </div>
       <p className="quiet-note">
-        Dates use actual time spacing. The vertical scale follows your recorded
-        range.
+        {hasBaseline ? 'Profile starting weight has no recorded date. Check-ins use their actual date spacing.' : 'Dates use actual time spacing.'} The vertical scale follows your recorded range.
       </p>
       <details className="chart-values">
         <summary>View {label.toLowerCase()} values</summary>
@@ -126,9 +127,9 @@ export function TrendChart({
             {data.map((p) => (
               <tr key={p.id}>
                 <td>
-                  {p.date.length > 10
-                    ? new Date(p.date).toLocaleString()
-                    : p.date}
+                  {p.caption || (p.date && (p.date.length > 10
+                    ? displayTimestamp(p.date)
+                    : p.date)) || 'Starting weight'}
                 </td>
                 <td>{p.value}</td>
               </tr>
