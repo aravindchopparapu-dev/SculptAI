@@ -1,5 +1,5 @@
 'use client';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowUpRight,
   Layers3,
@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { movements, type Movement } from '@/lib/studio';
-const AthleteScene = lazy(() => import('./athlete-scene'));
+import AthleteScene from './athlete-scene';
 export default function StudioHero({
   onStart,
   label,
@@ -37,8 +37,7 @@ export default function StudioHero({
         .connection?.saveData
     )
       return;
-    const id = setTimeout(() => setReady(true), 450);
-    return () => clearTimeout(id);
+    setReady(true);
   }, []);
   const selected = movements.find((m) => m.id === movement)!;
   return (
@@ -87,44 +86,20 @@ export default function StudioHero({
         </div>
       </div>
       <div className="athlete-stage">
-        <Suspense
-          fallback={
-            <img
-              className="model-fallback"
-              src="/athlete-art.webp"
-              alt="Athlete lifting dumbbells"
-              fetchPriority="high"
-            />
-          }
-        >
-          {ready ? (
-            <AthleteScene
-              movement={movement}
-              playing={playing}
-              speed={1}
-              cameraView={camera}
-              highlight={false}
-              active={active}
-            />
-          ) : (
-            <div className="athlete-canvas">
-              <img
-                className="model-fallback"
-                src="/athlete-art.webp"
-                alt="Athlete lifting dumbbells"
-                fetchPriority="high"
-              />
-              <button className="model-status" onClick={() => setReady(true)}>
-                Open interactive 3D
-              </button>
-            </div>
-          )}
-        </Suspense>
+        {active && <link rel="preload" href="/athlete-optimized.glb" as="fetch" crossOrigin="anonymous" />}
+        {ready ? <AthleteScene
+          movement={movement}
+          playing={playing}
+          speed={1}
+          cameraView={camera}
+          highlight={false}
+          active={active}
+        /> : <div className="athlete-canvas" />}
       </div>
       <div className="stage-top-label">
         <span className="stage-dot" />
         SCULPT MOTION{' '}
-        <span>0{movements.findIndex((m) => m.id === movement) + 1}/03</span>
+        <span>0{movements.findIndex((m) => m.id === movement) + 1}/{String(movements.length).padStart(2, '0')}</span>
       </div>
       <button
         className="stage-expand icon-button"

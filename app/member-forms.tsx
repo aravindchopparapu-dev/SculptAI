@@ -16,6 +16,7 @@ export const blankProfile: Profile = {
   sex: '',
   height: 0,
   weight: 0,
+  targetWeight: 0,
   goal: '',
   days: 0,
   minutes: 0,
@@ -140,14 +141,58 @@ export function Summary({
 }
 export function ProfileForm({
   initial,
+  photo,
+  onPhotoChange,
+  currentWeight,
+  currentWeightDate,
   busy,
   onSave,
 }: {
   initial: Profile;
+  photo?: string;
+  onPhotoChange: (photo: string | null) => Promise<void>;
+  currentWeight?: number;
+  currentWeightDate?: string;
   busy: boolean;
   onSave: (p: Profile) => Promise<void>;
 }) {
   const [p, setP] = useState(initial);
+  const [photoError, setPhotoError] = useState('');
+  const [photoBusy, setPhotoBusy] = useState(false);
+  async function choosePhoto(file?: File) {
+    if (!file) return;
+    setPhotoError('');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 10_000_000) {
+      setPhotoError('Choose a JPG, PNG or WebP photo under 10 MB.');
+      return;
+    }
+    setPhotoBusy(true);
+    try {
+      const image = await createImageBitmap(file);
+      if (!image.width || !image.height) throw new Error('This photo could not be opened.');
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('This photo could not be prepared.');
+      const side = Math.min(image.width, image.height);
+      let data = '';
+      for (const size of [160, 128, 96, 72]) {
+        canvas.width = size;
+        canvas.height = size;
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, size, size);
+        context.drawImage(image, (image.width - side) / 2, (image.height - side) / 2, side, side, 0, 0, size, size);
+        data = canvas.toDataURL('image/jpeg', 0.7);
+        if (data.length <= 16000) break;
+      }
+      image.close();
+      if (data.length > 16000) throw new Error('This photo could not be reduced enough. Choose a simpler image.');
+      await onPhotoChange(data);
+    } catch (error) {
+      setPhotoError(error instanceof Error ? error.message : 'This photo could not be saved.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
   const set = (key: keyof Profile, value: unknown) =>
     setP((prev) => ({ ...prev, [key]: value }));
   const imperial = p.units === 'Imperial';
@@ -157,8 +202,32 @@ export function ProfileForm({
         e.preventDefault();
         void onSave(p);
       }}
-      className="member-form"
+      className="member-form profile-manual-entry"
+      onWheelCapture={(event) => {
+        const focused = event.currentTarget.ownerDocument.activeElement;
+        if (focused instanceof HTMLInputElement && focused.type === 'number' && event.currentTarget.contains(focused)) focused.blur();
+      }}
+      onKeyDownCapture={(event) => {
+        if (event.target instanceof HTMLInputElement && event.target.type === 'number' && ['ArrowUp', 'ArrowDown'].includes(event.key)) event.preventDefault();
+      }}
     >
+      <div className="profile-photo-controls">
+        {photo ? <img className="profile-photo-preview" src={photo} alt="Your avatar" />
+          : <div className="profile-photo-preview profile-photo-placeholder" aria-hidden="true">{p.name.slice(0, 1).toUpperCase() || 'A'}</div>}
+        <div>
+          <strong>Profile photo</strong>
+          <div className="profile-photo-actions">
+            <label className="action-secondary">
+              {photoBusy ? 'Saving photo…' : photo ? 'Change photo' : 'Add photo'}
+              <input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Choose profile photo" disabled={busy || photoBusy} hidden
+                onChange={event => { void choosePhoto(event.target.files?.[0]); event.target.value = ''; }} />
+            </label>
+            {photo && <button type="button" className="action-secondary" disabled={busy || photoBusy}
+              onClick={() => { setPhotoError(''); void onPhotoChange(null).catch(error => setPhotoError(error instanceof Error ? error.message : 'The photo could not be removed.')); }}>Remove photo</button>}
+          </div>
+        </div>
+      </div>
+      {photoError && <p className="member-alert" role="alert">{photoError}</p>}
       <label className="field">
         Preferred name
         <input
@@ -240,30 +309,35 @@ export function ProfileForm({
           placeholder="For example: peanuts, dairy"
         />
       </label>
-      <h3>Nutrition estimates</h3>
+      <h3>Body measurements</h3>
       <p className="quiet-note">
-        Height, weight and formula sex are optional for training. The calorie
-        calculator needs all three. Switching display units preserves your
-        measurements.
+        Starting weight stays as the first point in Insights. Your latest
+        check-in supplies current weight. Height, starting weight and target weight
+        are required to calculate Fuel goals and a broad time estimate.
       </p>
       <div className="form-grid">
         <NumberField
-          label={`Height (${imperial ? 'in' : 'cm'}) · optional`}
+          label={`Height (${imperial ? 'in' : 'cm'})`}
           value={
             p.height ? Number((p.height / (imperial ? 2.54 : 1)).toFixed(2)) : 0
           }
-          optional
           min={imperial ? 39 : 100}
           max={imperial ? 99 : 250}
           onChange={(v) => set('height', v * (imperial ? 2.54 : 1))}
         />
         <NumberField
-          label={`Starting weight (${imperial ? 'lb' : 'kg'}) · optional`}
+          label={`Starting weight (${imperial ? 'lb' : 'kg'})`}
           value={p.weight ? weightDisplay(p.weight, p.units) : 0}
-          optional
           min={imperial ? 66 : 30}
           max={imperial ? 772 : 350}
           onChange={(v) => set('weight', v / (imperial ? 2.2046226218 : 1))}
+        />
+        <NumberField
+          label={`Target weight (${imperial ? 'lb' : 'kg'})`}
+          value={p.targetWeight ? weightDisplay(p.targetWeight, p.units) : 0}
+          min={imperial ? 66 : 30}
+          max={imperial ? 772 : 350}
+          onChange={(v) => set('targetWeight', v / (imperial ? 2.2046226218 : 1))}
         />
         <Choice
           label="Sex used by formula (optional)"
@@ -303,6 +377,7 @@ export function ProfileForm({
           }
         />
       </div>
+      <p className="quiet-note">Current weight: {currentWeight ? `${weightDisplay(currentWeight, p.units)} ${imperial ? 'lb' : 'kg'}${currentWeightDate ? ` (check-in ${currentWeightDate})` : ' (starting weight)'}` : 'add a starting weight or check-in'}. Edit a check-in in Insights to change your current weight.</p>
       <label className="eligibility" htmlFor="nutrition-eligible">
         <Switch
           id="nutrition-eligible"

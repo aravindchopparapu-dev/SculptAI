@@ -1,35 +1,13 @@
-# Secure AI connection for SculptAI Version 2
+# SculptAI AI Coach setup
 
-The website and saved workouts work now. Connected AI is still off. This guide prepares activation; no key has been created, credit purchased, or paid API request sent.
+AI Coach questions are wired to the OpenAI Responses API. The key is stored in this Mac's ignored `.env.local` as `OPENAI_API_KEY`; it is never sent to the browser. The default model is `gpt-5.6-luna`, overridable with `OPENAI_MODEL`. Restart the local server after changing either setting.
 
-## Your setup steps
+The local project key was created through the secure OpenAI Platform connector on 21 September 2026. A real provider request returned `credit_balance_exhausted`, so connected answers cannot work until the selected OpenAI API project has credits. The app currently shows its built-in guide when the provider rejects a request. ChatGPT subscription billing is separate from API billing. Review the [API billing page](https://platform.openai.com/settings/organization/billing/) and your project's usage controls before adding credits.
 
-1. Enable the **OpenAI Developers** plugin in Codex, if it is available for your account. Its `openai-platform-api-key` skill supports creating or reusing a project key through the approved flow. This plugin is not currently callable in this task.
-2. Sign in to your own [OpenAI API project](https://platform.openai.com/settings/organization/projects). Use a dedicated SculptAI project so its usage and credentials are separate from other work. Review that project's billing and usage controls before enabling requests. ChatGPT sign-in to the website is separate from API billing. [OpenAI billing explanation](https://help.openai.com/en/articles/9039756).
-3. Tell Codex: “The OpenAI Developers plugin is enabled. Help me connect my SculptAI Version 2 project securely.” You do not need to paste a key into this chat. If your account cannot enable the plugin, leave AI off and we will confirm an available secure secret-entry workflow first.
+The Coach tab answers questions about saved profile preferences, workout history and adopted nutrition targets. It does not generate InBody estimates or meal/workout plans, upload scans, or modify records. No conversation history is stored. The server requires sign-in and same-origin requests, caps questions at 1,000 characters, and reserves at most 20 live requests per member in a rolling one-hour window. High-risk requests receive local safety guidance. Responses requests use `store: false`; this does not promise zero provider operational retention.
 
-## Configuration I will complete after the secure connection is available
+Backend instructions live in [lib/coach-instructions.ts](lib/coach-instructions.ts). Edit `COACH_INSTRUCTIONS` there to set the Coach's role, tone, explanation style, and product boundaries for every user. Keep this file free of API keys and member-specific information. The safety checks in `lib/coach.ts` still run before the provider request, so backend instructions cannot authorize unsafe advice or override the app's data boundaries.
 
-| Setting | Where it belongs | Purpose |
-| --- | --- | --- |
-| `OPENAI_API_KEY` | Version 2 Sites runtime environment, marked secret | Authorizes server requests to your API project |
-| `OPENAI_MODEL` | Version 2 Sites runtime environment | An available Responses API model selected for your budget and latency needs |
+To test after billing is ready: open the signed-in local site, set up a profile, select **Coach**, and ask a normal training question. The answer should be labeled **Connected AI Coach**. If it says **Built-in Guide**, the live request failed or the key is not available. Fictional demo mode never sends its data to the AI service. Use the project's API usage page to verify the request and cost.
 
-The target is **SculptAI Version 2 Future Studio**, project `appgprj_6a9f66350b408191b305303ba6032539`. Version 1 is separate.
-
-I will use the connector's secret flag, verify presence without printing the value, and deploy the saved V2 version so the environment revision is applied. The key does not belong in browser code, `NEXT_PUBLIC_*`, hosting.json, a source commit, screenshots, or this document. Local `.env` configuration alone does not configure the hosted website.
-
-## Acceptance before calling live AI ready
-
-- Ask a normal training question using a synthetic test profile and confirm the response is labelled “Connected AI guide.”
-- Check a question with missing data, a request to change a plan, an unsafe request and a verified-source question. Confirm no record changes without a separate confirmation.
-- Check provider rejection/unavailability and verify the built-in guide remains available.
-- Check that responses match saved records, and inspect request timing and API-project usage. Existing mocks do not establish real provider quality or latency.
-
-The current adapter sends your question, goal, equipment, plan and recent completed sets. It excludes account identity and free-text workout/profile notes. Eligible adopted nutrition targets may be included. It requests no response storage (`store: false`); this is not a promise that the provider has no operational retention. The app has a per-user 20-request hourly live limit, a 15-second timeout and no AI tools that can modify records.
-
-## Pause or recover
-
-If connection checks fail, core workout logging still works. We can remove the live API setting and redeploy to return to the built-in guide. Revoke a compromised project key through your API account and replace the Sites secret. Never include the compromised value in an issue or chat.
-
-This workflow follows the local [Sites environment guidance](<C:/Users/aravi/.codex/plugins/cache/openai-bundled/sites/0.1.57/skills/sites-hosting/references/environment.md>): “If the skill is unavailable, ask the user to install or enable the plugin.” Current product API details: [OpenAI text generation guide](https://developers.openai.com/api/docs/guides/text).
+Local `.env.local` does not configure a hosted deployment. Before publishing, configure `OPENAI_API_KEY` as a secret and `OPENAI_MODEL` in the host's server runtime, then verify the hosted signed-in flow. Never paste a key into chat or commit an env file. If a key is exposed, delete it in the [API keys dashboard](https://platform.openai.com/api-keys) and create a replacement.

@@ -1,3 +1,4 @@
+import { normalizedState } from './adaptation.ts';
 import { emptyState, type State } from './fitness.ts';
 import { applyAction, type Action } from './actions.ts';
 type Row = { data: string; revision: number; operations: string };
@@ -9,7 +10,7 @@ export async function readState(db: D1Database, userId: string) {
     .bind(userId)
     .first<Row>();
   return {
-    state: row ? (JSON.parse(row.data) as State) : emptyState(),
+    state: row ? normalizedState(JSON.parse(row.data) as State) : emptyState(),
     revision: row?.revision ?? 0,
   };
 }

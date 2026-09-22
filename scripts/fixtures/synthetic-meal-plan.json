@@ -1,0 +1,154 @@
+{
+  "state": {
+    "mealFoods": {
+      "breakfast": [
+        "Rolled oats, dry",
+        "Whole eggs, boiled",
+        "Whole milk"
+      ],
+      "lunch": [
+        "Chicken breast, cooked",
+        "Brown rice, cooked",
+        "Broccoli, cooked",
+        "Olive oil"
+      ],
+      "dinner": [
+        "Salmon, cooked",
+        "Potatoes, boiled",
+        "Spinach, cooked"
+      ],
+      "morningSnack": [],
+      "eveningSnack": [],
+      "lateSnack": []
+    },
+    "targets": [
+      {
+        "calories": 2224.19140625
+      }
+    ]
+  },
+  "result": {
+    "draft": {
+      "status": "ready",
+      "message": "",
+      "notes": "Estimated daily total from the listed preparation values: approximately 2,225 kcal using 4/4/9, 129 g protein, 287 g carbohydrate, and 62 g fat. Portions use edible weights. Oats are weighed dry; eggs, chicken, rice, broccoli, salmon, potatoes, and spinach are weighed after the stated cooking method. Milk and olive oil are weighed as supplied, without volume conversion. Nutrition values are AI estimates and may vary by brand, cooking method, water loss, and mixed-dish preparation; check labels where available.",
+      "meals": [
+        {
+          "slot": "breakfast",
+          "items": [
+            {
+              "foodId": "breakfast-0",
+              "grams": 100,
+              "basis": "Weighed dry as supplied; no cooking-water weight included.",
+              "per100g": {
+                "protein": 16.9,
+                "carbs": 66.3,
+                "fat": 6.9
+              }
+            },
+            {
+              "foodId": "breakfast-1",
+              "grams": 100,
+              "basis": "Edible boiled egg weight, assumed drained of surface water; shell excluded.",
+              "per100g": {
+                "protein": 12.6,
+                "carbs": 1.1,
+                "fat": 10.6
+              }
+            },
+            {
+              "foodId": "breakfast-2",
+              "grams": 300,
+              "basis": "Liquid milk weighed directly as supplied; no volume conversion used.",
+              "per100g": {
+                "protein": 3.15,
+                "carbs": 4.8,
+                "fat": 3.25
+              }
+            }
+          ]
+        },
+        {
+          "slot": "lunch",
+          "items": [
+            {
+              "foodId": "lunch-0",
+              "grams": 130,
+              "basis": "Weighed cooked and edible; assumed skinless, with no added ingredients.",
+              "per100g": {
+                "protein": 31,
+                "carbs": 0,
+                "fat": 3.6
+              }
+            },
+            {
+              "foodId": "lunch-1",
+              "grams": 350,
+              "basis": "Weighed after cooking; assumed plain cooked rice with excess water drained.",
+              "per100g": {
+                "protein": 2.7,
+                "carbs": 25.6,
+                "fat": 1
+              }
+            },
+            {
+              "foodId": "lunch-2",
+              "grams": 150,
+              "basis": "Weighed cooked and edible; assumed plain cooked broccoli with excess water drained.",
+              "per100g": {
+                "protein": 2.4,
+                "carbs": 7.2,
+                "fat": 0.4
+              }
+            },
+            {
+              "foodId": "lunch-3",
+              "grams": 12,
+              "basis": "Weighed as supplied edible oil; no additional cooking loss or ingredients assumed.",
+              "per100g": {
+                "protein": 0,
+                "carbs": 0,
+                "fat": 100
+              }
+            }
+          ]
+        },
+        {
+          "slot": "dinner",
+          "items": [
+            {
+              "foodId": "dinner-0",
+              "grams": 110,
+              "basis": "Weighed cooked and edible; assumed plain cooked salmon with no added ingredients.",
+              "per100g": {
+                "protein": 22.1,
+                "carbs": 0,
+                "fat": 12.4
+              }
+            },
+            {
+              "foodId": "dinner-1",
+              "grams": 500,
+              "basis": "Weighed after boiling; assumed plain edible potato with excess water drained.",
+              "per100g": {
+                "protein": 1.9,
+                "carbs": 20.1,
+                "fat": 0.1
+              }
+            },
+            {
+              "foodId": "dinner-2",
+              "grams": 100,
+              "basis": "Weighed cooked and edible; assumed plain cooked spinach with excess water drained.",
+              "per100g": {
+                "protein": 3,
+                "carbs": 3.8,
+                "fat": 0.3
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

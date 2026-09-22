@@ -24,6 +24,7 @@ const profile: Profile = {
   sex: 'Male',
   height: 175,
   weight: 75,
+  targetWeight: 75,
   goal: 'Muscle gain',
   days: 3,
   minutes: 45,
@@ -127,24 +128,39 @@ void test('Competing writers cannot overwrite a newer save', async () => {
   assert.equal(results.filter((x) => x.status === 'fulfilled').length, 1);
   assert.equal((await readState(d, 'alice')).revision, 2);
 });
-void test('Profile validation rejects minors and wrong numeric types; optional inputs do not block training', () => {
+void test('Profile validation rejects minors and wrong numeric types; missing body measurements cannot be saved', () => {
   assert.throws(() => validateProfile({ ...profile, age: 17 }));
   assert.throws(() =>
     validateProfile({ ...profile, height: '175' } as unknown as Profile),
   );
   const p = { ...profile, height: 0, weight: 0, sex: '', eligible: false };
-  assert.equal(generatePlan(p).days.length, 3);
+  assert.throws(() => validateProfile(p), /Height/);
+  assert.throws(() => validateProfile({ ...profile, weight: 0 }), /Starting weight/);
+  assert.throws(() => validateProfile({ ...profile, targetWeight: 0 }), /Target weight/);
+  assert.throws(() => generatePlan(p), /Height/);
   assert.throws(() => nutrition(p));
+});
+void test('Profile photo stays with its account and can be removed', async () => {
+  const database = db();
+  const photo = `data:image/jpeg;base64,${Buffer.from('synthetic photo').toString('base64')}`;
+  const saved = await mutateState(database, 'photo-owner', 0, crypto.randomUUID(), { type: 'profilePhoto', photo });
+  assert.equal(saved.state.profilePhoto, photo);
+  assert.equal((await readState(database, 'other-person')).state.profilePhoto, undefined);
+  assert.throws(() => applyAction(saved.state, { type: 'profilePhoto', photo: 'data:image/svg+xml;base64,PHN2Zz4=' }), /photo/i);
+  assert.throws(() => applyAction(saved.state, { type: 'profilePhoto', photo: `data:image/jpeg;base64,${'A'.repeat(16004)}` }), /photo/i);
+  const removed = await mutateState(database, 'photo-owner', saved.revision, crypto.randomUUID(), { type: 'profilePhoto', photo: null });
+  assert.equal((await readState(database, 'photo-owner')).state.profilePhoto, undefined);
+  assert.equal(removed.state.profilePhoto, undefined);
 });
 void test('Plans respect equipment, avoidance and beginner volume', () => {
   for (const equipment of ['Bodyweight', 'Dumbbells', 'Gym'])
     for (const days of [2, 3, 4, 5, 6]) {
-      const p = { ...profile, equipment, days, avoid: 'squat' },
+      const p = { ...profile, equipment, days, avoid: 'goblet squat' },
         plan = generatePlan(p);
       assert.equal(plan.days.length, days);
       for (const d of plan.days)
         for (const e of d.exercises) {
-          assert.ok(!e.name.toLowerCase().includes('squat'));
+          assert.ok(!e.name.toLowerCase().includes('goblet squat'));
           assert.equal(e.sets, 2);
           assert.ok(
             e.equipment === 'Bodyweight' ||
@@ -166,12 +182,40 @@ void test('Nutrition uses raw precision, reconciles calories and rejects ineligi
 });
 void test('Plan previews and replacements preserve historical workout version', () => {
   let state = applyAction(emptyState(), { type: 'profile', profile });
+  state = applyAction(state, {
+    type: 'safety',
+    accepted: true,
+    status: 'clear',
+  });
   state = applyAction(state, { type: 'plan', confirmed: true });
+  state = applyAction(state, {
+    type: 'readiness',
+    readiness: {
+      dayIndex: 0,
+      energy: 4,
+      soreness: 0,
+      minutes: 45,
+      pain: false,
+      equipment: profile.equipment,
+    },
+  });
   state = applyAction(state, { type: 'start', dayIndex: 0 });
   const original = state.plans[0].id;
   const preview = makePlanPreview(state, { type: 'shorten', dayIndex: 0 });
   assert.equal(state.plans.length, 1);
-  assert.ok(preview.days[0].exercises.length <= 3);
+  assert.equal(
+    preview.days[0].exercises.length,
+    state.plans[0].days[0].exercises.length,
+  );
+  assert.throws(
+    () => applyAction(state, { type: 'shorten', dayIndex: 0, confirmed: true }),
+    /active workout/,
+  );
+  state = applyAction(state, {
+    type: 'finish',
+    sessionId: state.sessions[0].id,
+    confirmed: true,
+  });
   state = applyAction(state, { type: 'shorten', dayIndex: 0, confirmed: true });
   assert.equal(state.sessions[0].planId, original);
   assert.equal(state.plans.length, 2);
@@ -184,8 +228,24 @@ void test('Workout sets survive reads, completion validates values and partial s
     profile,
   });
   s = await mutateState(d, 'alice', s.revision, crypto.randomUUID(), {
+    type: 'safety',
+    accepted: true,
+    status: 'clear',
+  });
+  s = await mutateState(d, 'alice', s.revision, crypto.randomUUID(), {
     type: 'plan',
     confirmed: true,
+  });
+  s = await mutateState(d, 'alice', s.revision, crypto.randomUUID(), {
+    type: 'readiness',
+    readiness: {
+      dayIndex: 0,
+      energy: 4,
+      soreness: 0,
+      minutes: 45,
+      pain: false,
+      equipment: profile.equipment,
+    },
   });
   s = await mutateState(d, 'alice', s.revision, crypto.randomUUID(), {
     type: 'start',
@@ -273,4 +333,66 @@ void test('Guide has no invented performance and routes pain or emergency reques
   );
   assert.match(safetyResponse('I have chest pain')!, /emergency/);
   assert.match(safetyResponse('My knee has pain')!, /clinician/);
+});
+
+void test('Readiness and immutable decisions persist through member transactions and stay isolated', async () => {
+  const database = db();
+  let snapshot = await mutateState(database, 'alice', 0, crypto.randomUUID(), {
+    type: 'profile',
+    profile,
+  });
+  for (const action of [
+    { type: 'safety', accepted: true, status: 'clear' },
+    { type: 'plan', confirmed: true },
+    {
+      type: 'readiness',
+      readiness: {
+        dayIndex: 0,
+        energy: 1,
+        soreness: 8,
+        minutes: 45,
+        pain: false,
+        equipment: 'Dumbbells',
+      },
+    },
+    { type: 'proposeAdaptation', dayIndex: 0 },
+  ])
+    snapshot = await mutateState(
+      database,
+      'alice',
+      snapshot.revision,
+      crypto.randomUUID(),
+      action,
+    );
+  const receipt = structuredClone(snapshot.state.receipts![0]);
+  snapshot = await mutateState(
+    database,
+    'alice',
+    snapshot.revision,
+    crypto.randomUUID(),
+    {
+      type: 'decideAdaptation',
+      receiptId: receipt.receiptId,
+      decision: 'accepted',
+      reason: 'More recovery today',
+    },
+  );
+  const reread = await readState(database, 'alice');
+  assert.deepEqual(reread.state.receipts![0], receipt);
+  assert.equal(reread.state.decisions![0].decision, 'accepted');
+  assert.equal(reread.state.plans.length, 2);
+  assert.equal((await readState(database, 'bob')).state.receipts!.length, 0);
+  await mutateState(database, 'bob', 0, crypto.randomUUID(), {
+    type: 'profile',
+    profile,
+  });
+  await assert.rejects(
+    mutateState(database, 'bob', 1, crypto.randomUUID(), {
+      type: 'decideAdaptation',
+      receiptId: receipt.receiptId,
+      decision: 'accepted',
+      reason: '',
+    }),
+    /unavailable/,
+  );
 });

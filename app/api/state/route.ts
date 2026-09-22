@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { getDb } from '@/db';
 import {
@@ -6,6 +7,7 @@ import {
   mutateState,
   readState,
 } from '@/lib/repository';
+import { analyzeFuelTrend, analyzeFuelTimeline } from '@/lib/fuel-coach';
 export const dynamic = 'force-dynamic';
 const json = (value: unknown, status = 200) =>
   Response.json(value, {
@@ -54,16 +56,45 @@ export async function POST(request: Request) {
       typeof body.action.type !== 'string'
     )
       return json({ error: 'Invalid request.' }, 400);
-    try {
+    if (['start', 'set', 'finish', 'sessionNotes', 'pain'].includes(body.action.type)) return json({ error: 'Workout logging is currently disabled.' }, 400);
+    if (['coachFuelReview', 'coachTimeline', 'generatedMealPlan'].includes(body.action.type)) return json({ error: 'Coach review is server managed.' }, 400);
+    if (body.action.type === 'plan')
       return json(
-        await mutateState(
+        { error: 'New workout plans are paused until AI Coach is connected.' },
+        400,
+      );
+    try {
+      let saved = await mutateState(
           getDb(),
           user.userId,
           body.revision,
           body.operationId,
           body.action,
-        ),
-      );
+        );
+      if (['profile', 'metric', 'fuelSync'].includes(body.action.type)) {
+        const runtime = env as unknown as { OPENAI_API_KEY?: string; OPENAI_MODEL?: string };
+        const config = {
+          OPENAI_API_KEY: runtime.OPENAI_API_KEY || process.env.OPENAI_API_KEY,
+          OPENAI_MODEL: runtime.OPENAI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-luna',
+        };
+        try {
+          const recommendation = await analyzeFuelTrend(saved.state, config);
+          if (recommendation) saved = await mutateState(getDb(), user.userId, saved.revision,
+            crypto.randomUUID(), { type: 'coachFuelReview', ...recommendation });
+        } catch {
+          // Profile/check-in and formula estimate are already saved. The next
+          // eligible update can retry the AI review without losing member data.
+          saved = await readState(getDb(), user.userId);
+        }
+        try {
+          const timeline = await analyzeFuelTimeline(saved.state, config);
+          if (timeline) saved = await mutateState(getDb(), user.userId, saved.revision,
+            crypto.randomUUID(), { type: 'coachTimeline', ...timeline });
+        } catch {
+          saved = await readState(getDb(), user.userId);
+        }
+      }
+      return json(saved);
     } catch (error) {
       if (error instanceof Conflict || error instanceof DuplicateOperation)
         return json(

@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { emptyState } from './fitness.ts';
+import { emptyState, nutrition } from './fitness.ts';
 import { answerCoach, coachContext } from './live-coach.ts';
+import { answerFuelExplanation, fuelExplanationFacts } from './fuel-explanation.ts';
 const state = emptyState();
 state.profile = {
   name: 'Private name',
@@ -9,6 +10,7 @@ state.profile = {
   sex: 'Male',
   height: 175,
   weight: 75,
+  targetWeight: 75,
   goal: 'Strength',
   days: 3,
   minutes: 45,
@@ -21,11 +23,12 @@ state.profile = {
   avoid: 'Private medical note',
   eligible: false,
 };
-void test('AI context excludes identity and sensitive free-text notes', () => {
+void test('AI context includes member metrics but excludes identity and free-text notes', () => {
   const context = JSON.stringify(coachContext(state));
   assert.ok(!context.includes('Private'));
-  assert.ok(!context.includes('age'));
-  assert.ok(!context.includes('weight'));
+  assert.match(context, /"age":30/);
+  assert.match(context, /"startingWeightKg":75/);
+  assert.match(context, /"bodyMetrics"/);
 });
 void test('Unconfigured AI and safety requests make no provider request', async () => {
   let calls = 0;
@@ -78,7 +81,7 @@ void test('AI integration parses Responses output, disables storage and never ch
   );
   assert.equal(result.mode, 'openai');
   assert.equal(body.store, false);
-  assert.equal(body.max_output_tokens, 700);
+  assert.equal(body.max_output_tokens, 1800);
   assert.deepEqual(state, before);
 });
 void test('Provider errors and timeouts preserve the built-in guide', async () => {
@@ -147,4 +150,35 @@ void test('Ordinary record and exercise questions remain available to the built-
       'built-in',
       question,
     );
+});
+void test('Fuel explanation uses saved member calculations and sends a fixed server prompt', async () => {
+  const saved = emptyState();
+  saved.profile = { ...state.profile!, eligible: true, weight: 80, targetWeight: 75 };
+  const base = nutrition(saved.profile);
+  saved.targets.push({ ...base, calories: base.calories + 75, adjustment: 75,
+    carbs: (base.calories + 75 - 4 * base.protein - 9 * base.fat) / 4 });
+  const before = structuredClone(saved);
+  const facts = fuelExplanationFacts(saved);
+  assert.equal(facts.currentWeightKg, 80);
+  assert.equal(facts.targetWeightKg, 75);
+  assert.equal(facts.savedCalorieGoalKcal, base.calories + 75);
+  assert.equal(facts.coachAdjustmentKcal, 75);
+  const fallback = await answerFuelExplanation(saved, {});
+  assert.equal(fallback.mode, 'built-in');
+  assert.match(fallback.answer, /Protein: 80 kg × 1\.6 g\/kg/);
+  assert.match(fallback.answer, /75 kcal\/day/);
+
+  let payload: Record<string, unknown> = {};
+  const request = (async (_url: unknown, init: RequestInit) => {
+    payload = JSON.parse(init.body as string);
+    return Response.json({ status: 'completed', output: [{ type: 'message', content: [
+      { type: 'output_text', text: 'Your saved calorie goal is a starting estimate.' },
+    ] }] });
+  }) as typeof fetch;
+  const reply = await answerFuelExplanation(saved,
+    { OPENAI_API_KEY: 'test-only', OPENAI_MODEL: 'test-model' }, request);
+  assert.equal(reply.mode, 'openai');
+  assert.equal(payload.store, false);
+  assert.match(JSON.stringify(payload.input), /savedFuelCalculation/);
+  assert.deepEqual(saved, before);
 });

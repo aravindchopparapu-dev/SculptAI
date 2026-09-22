@@ -1,9 +1,19 @@
+import type { MealFoods, SavedMealPlan } from './meal-plan.ts';
+import { additionalExercises } from './exercise-library.ts';
+import {
+  adaptiveDefaults,
+  buildSchedule,
+  estimateMinutes,
+  type AdaptiveData,
+  type PainEvent,
+} from './adaptation.ts';
 export type Profile = {
   name: string;
   age: number;
   sex: string;
   height: number;
   weight: number;
+  targetWeight?: number;
   goal: string;
   days: number;
   minutes: number;
@@ -26,6 +36,12 @@ export type Plan = {
   id: string;
   version: number;
   created: string;
+  inputs?: Profile;
+  templateVersion?: string;
+  schedule?: { week: number; dayIndex: number; date: string }[];
+  blockId?: string;
+  selectedMuscles?: string[];
+  readinessId?: string;
   days: {
     name: string;
     exercises: (Exercise & { sets: number; reps: string; rest: number })[];
@@ -56,6 +72,9 @@ export type SetLog = {
   skipped?: boolean;
 };
 export type Session = {
+  readinessId?: string;
+  painEvents?: PainEvent[];
+  prescribed?: Plan['days'][number];
   id: string;
   planId: string;
   name: string;
@@ -76,15 +95,24 @@ export type Target = {
   fat: number;
   carbs: number;
   inputs: Profile;
+  adjustment?: number;
+  analysis?: string;
+  source?: 'automatic-formula' | 'ai-coach' | 'manual';
+  timeline?: { minWeeks: number; maxWeeks: number; explanation: string; source: 'planning' | 'ai-coach' };
 };
-export type State = {
+export type State = Partial<AdaptiveData> & {
   profile: Profile | null;
+  profilePhoto?: string;
+  mealFoods?: MealFoods;
+  mealPlan?: SavedMealPlan;
   plans: Plan[];
   metrics: Metric[];
   sessions: Session[];
   targets: Target[];
+  draftWorkout?: { replacesPlanId?: string; readinessId?: string; id: string; created: string; selectedMuscles: string[]; day: Plan['days'][number]; rationale: string; profile: Profile };
 };
 export const emptyState = (): State => ({
+  ...adaptiveDefaults(),
   profile: null,
   plans: [],
   metrics: [],
@@ -142,13 +170,38 @@ export const exercises: Exercise[] = [
   ['Seated cable row', 'pull', 'Gym', 'Keep your torso still.'],
   ['Split squat', 'leg', 'Bodyweight', 'Use support for balance if needed.'],
   ['Calf raise', 'leg', 'Bodyweight', 'Pause at the top.'],
+  ['Reverse lunge', 'leg', 'Bodyweight', 'Step back and keep your front foot grounded.'],
+  ['Dumbbell shoulder press', 'push', 'Dumbbells', 'Press without arching your back.'],
+  ['Pike push-up', 'push', 'Bodyweight', 'Keep your head between your hands.'],
+  ['Machine shoulder press', 'push', 'Gym', 'Use a comfortable range of motion.'],
+  ['Dumbbell curl', 'pull', 'Dumbbells', 'Keep your elbows near your sides.'],
+  ['Self-resisted curl', 'pull', 'Bodyweight', 'Use your other hand for gentle resistance.'],
+  ['Cable curl', 'pull', 'Gym', 'Keep your upper arms still.'],
+  ['Overhead triceps extension', 'push', 'Dumbbells', 'Keep your upper arms steady.'],
+  ['Close-grip push-up', 'push', 'Bodyweight', 'Keep elbows close; elevate hands if needed.'],
+  ['Cable triceps pushdown', 'push', 'Gym', 'Move through your elbows, not your shoulders.'],
+  ['Dumbbell wrist curl', 'pull', 'Dumbbells', 'Move slowly through a comfortable range.'],
+  ['Self-resisted wrist curl', 'pull', 'Bodyweight', 'Use your other hand for light resistance.'],
+  ['Hammer curl', 'pull', 'Dumbbells', 'Keep your wrists neutral.'],
+  ['Incline dumbbell press', 'push', 'Dumbbells', 'Keep wrists stacked and lower with control.'],
+  ['Cable chest fly', 'push', 'Gym', 'Keep a soft bend in your elbows; use a comfortable range.'],
+  ['Dumbbell floor fly', 'push', 'Dumbbells', 'Use light resistance; let the floor limit your range.'],
+  ['Incline dumbbell curl', 'pull', 'Dumbbells', 'Keep upper arms still and avoid swinging.'],
+  ['Preacher curl', 'pull', 'Gym', 'Keep your upper arms supported and lower slowly.'],
+  ['Concentration curl', 'pull', 'Dumbbells', 'Support your upper arm and move slowly.'],
+  ['Dumbbell lateral raise', 'push', 'Dumbbells', 'Use soft elbows and avoid shrugging.'],
+  ['Dumbbell reverse fly', 'pull', 'Dumbbells', 'Hinge gently and keep the movement controlled.'],
+  ['Lat pulldown', 'pull', 'Gym', 'Pull toward your chest without swinging.'],
+  ['Hamstring walkout', 'hinge', 'Bodyweight', 'From a bridge, take small steps out and back.'],
+  ['Reverse crunch', 'core', 'Bodyweight', 'Move slowly without swinging.'],
+  ['Dumbbell calf raise', 'leg', 'Dumbbells', 'Pause at the top; keep balance supported.'],
   [
     'Dead bug',
     'core',
     'Bodyweight',
     'Keep your lower back comfortably supported.',
   ],
-].map(([name, pattern, equipment, cue]) => ({ name, pattern, equipment, cue }));
+].map(([name, pattern, equipment, cue]) => ({ name, pattern, equipment, cue })).concat(additionalExercises.map(({ name, pattern, equipment, cue }) => ({ name, pattern, equipment, cue })));
 export function num(v: unknown, label: string, min: number, max: number) {
   const n = v as number;
   if (typeof v !== 'number' || !Number.isFinite(n) || n < min || n > max)
@@ -160,8 +213,11 @@ export function validateProfile(p: Profile) {
     throw new Error('Enter a name of 1–80 characters.');
   num(p.age, 'Age', 18, 100);
   if (!Number.isInteger(p.age)) throw new Error('Age must be a whole number.');
-  if (p.height !== 0) num(p.height, 'Height', 100, 250);
-  if (p.weight !== 0) num(p.weight, 'Weight', 30, 350);
+  num(p.height, 'Height', 100, 250);
+  num(p.weight, 'Starting weight', 30, 350);
+  num(p.targetWeight, 'Target weight', 30, 350);
+  if (p.targetWeight! / (p.height / 100) ** 2 < 18.5)
+    throw new Error('Choose a target weight within the supported range.');
   num(p.days, 'Training days', 2, 6);
   if (!Number.isInteger(p.days)) throw new Error('Choose whole training days.');
   num(p.minutes, 'Duration', 20, 90);
@@ -186,6 +242,7 @@ export function validateProfile(p: Profile) {
       'sex',
       'height',
       'weight',
+      'targetWeight',
       'goal',
       'days',
       'minutes',
@@ -223,12 +280,20 @@ export function generatePlan(p: Profile, version = 1): Plan {
         ? ['squat', 'hinge', 'leg', 'core']
         : ['squat', 'push', 'pull', 'hinge', 'core'];
     const chosen: Exercise[] = [];
-    for (const pattern of patterns.slice(0, p.minutes <= 30 ? 3 : 5)) {
+    for (const pattern of patterns) {
       const c = available.filter(
         (e) => e.pattern === pattern && !chosen.some((x) => x.name === e.name),
       );
       if (c.length) chosen.push(c[i % c.length]);
     }
+    if (
+      [...new Set(patterns)].some(
+        (pattern) => !chosen.some((e) => e.pattern === pattern),
+      )
+    )
+      throw new Error(
+        'Your exclusions leave a missing movement pattern. This template cannot safely cover your preferences; seek a tailored plan rather than removing an exclusion for an injury.',
+      );
     if (chosen.length < 2)
       throw new Error(
         'Your avoidance list leaves too few exercises. Review your preferences.',
@@ -246,11 +311,29 @@ export function generatePlan(p: Profile, version = 1): Plan {
       })),
     };
   });
+  // Fit the declared duration without dropping movement patterns or compressing rest.
+  for (const day of days) {
+    while (
+      estimateMinutes(day) > p.minutes &&
+      day.exercises.some((e) => e.sets > 1)
+    ) {
+      const exercise = [...day.exercises].reverse().find((e) => e.sets > 1)!;
+      exercise.sets--;
+    }
+    if (estimateMinutes(day) > p.minutes)
+      throw new Error('Choose a longer session to retain warm-up and rest.');
+  }
+  const id = crypto.randomUUID(),
+    created = new Date().toISOString();
   return {
-    id: crypto.randomUUID(),
+    id,
+    blockId: id,
     version,
-    created: new Date().toISOString(),
+    created,
     days,
+    inputs: structuredClone(p),
+    templateVersion: 'strength-2026-09-18',
+    schedule: buildSchedule(days, created),
   };
 }
 export function nutrition(p: Profile): Target {
@@ -271,9 +354,15 @@ export function nutrition(p: Profile): Target {
       5 * p.age +
       (p.sex === 'Male' ? 5 : -161)) *
     p.activity;
+  const gap = p.targetWeight ? p.targetWeight - p.weight : 0;
+  // A goal weight alone does not imply a deadline. Start with a modest change
+  // that grows with the remaining gap, capped so distant goals take longer
+  // instead of producing an extreme daily calorie target.
+  const changeFraction = Math.abs(gap) < 0.5 ? 0 : gap < 0
+    ? -Math.min(0.15, (Math.abs(gap) / p.weight) * 1.2)
+    : Math.min(0.08, (gap / p.weight) * 0.8);
   const calories =
-      maintenance *
-      (p.goal === 'Fat loss' ? 0.9 : p.goal === 'Muscle gain' ? 1.05 : 1),
+      maintenance * (1 + changeFraction),
     protein = 1.6 * p.weight,
     fat = Math.max(0.8 * p.weight, (calories * 0.25) / 9),
     carbs = (calories - 4 * protein - 9 * fat) / 4;
@@ -284,7 +373,7 @@ export function nutrition(p: Profile): Target {
   return {
     id: crypto.randomUUID(),
     created: new Date().toISOString(),
-    method: 'Mifflin-St Jeor + activity; SculptAI v2.1',
+    method: 'Mifflin-St Jeor + activity; SculptAI v2.2 goal-gap estimate',
     maintenance,
     calories,
     protein,
