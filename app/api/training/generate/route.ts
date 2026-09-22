@@ -3,6 +3,7 @@ import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { getDb } from '@/db';
 import { generateCustomWorkout, validateMuscles, workoutReadiness } from '@/lib/custom-workout';
 import { readState } from '@/lib/repository';
+import { readPublishedControl } from '@/lib/admin-control';
 
 export const dynamic = 'force-dynamic';
 const json = (value: unknown, status = 200) => Response.json(value, {
@@ -33,6 +34,8 @@ export async function POST(request: Request) {
     const body = JSON.parse(raw) as { selectedMuscles?: unknown; regeneratePlanId?: string };
     const selected = validateMuscles(body.selectedMuscles);
     const db = getDb();
+    const { control } = await readPublishedControl(db);
+    if (!control.features.workouts) return json({ error: 'Workout generation is temporarily paused.' }, 503);
     const { state } = await readState(db, user.userId);
     if (!state.profile) return json({ error: 'Complete your profile first.' }, 400);
     const previous = body.regeneratePlanId ? state.plans.find(p => p.id === body.regeneratePlanId) : undefined;
@@ -45,6 +48,7 @@ export async function POST(request: Request) {
     return json(await generateCustomWorkout(state, selected, {
       OPENAI_API_KEY: runtime.OPENAI_API_KEY || process.env.OPENAI_API_KEY,
       OPENAI_MODEL: runtime.OPENAI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-luna',
+      adminGuidance: control.guidance.workouts,
     }, fetch, priorNames));
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : 'AI Coach is temporarily unavailable.' }, 400);

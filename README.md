@@ -45,6 +45,16 @@ Use the existing V2 project in .openai/hosting.json and preserve its access sett
 
 Applied database migrations are immutable. The retired V1 app is not a dependency of this project.
 
+## Admin Control Centre
+
+Open `/admin` after signing in as the configured owner. The Admin page and every Admin API request check the trusted authenticated user on the server against `SCULPTAI_ADMIN_USER_ID` or `SCULPTAI_ADMIN_EMAIL` in the server environment. Without a configured owner, access is denied. Do not add those identifiers to client code or use a browser-only check as authorization.
+
+The centre offers a private overview, feature switches, a member notice, and additional guidance for Coach answers, workout plans and meal plans. Save a draft, test it with fictional profiles, then publish it. The live endpoints read only the published version. The core safety and output rules remain in source code. Older published control versions can be loaded into a new draft for review. Preview calls use the server's existing AI key and may consume API credit; no real member data is sent by the preview.
+
+`GET /api/v1/app-config` exposes only the published version, feature availability and member notice for website and future native clients. Admin writes and previews use `/api/admin/v1/*` and require the owner's authenticated session, same-origin requests and server authorization. Future iOS member authentication must be integrated separately before it can call member APIs; this configuration endpoint does not grant member or admin access.
+
+The additive `0001_flaky_sleeper.sql` migration stores controls and release history without changing member rows. Run this migration in an existing local D1 database before opening `/admin`; Sites applies packaged migrations during deployment. The centre does not expose API keys, member health details or OpenAI billing totals.
+
 ## Assets
 
 Quaternius Superhero Male from Universal Base Characters, CC0 1.0. Creator: https://quaternius.com/packs/universalbasecharacters.html. Official download: https://quaternius.itch.io/universal-base-characters. License retained in public/LICENSE-athlete.txt. Original generated gym and athlete artwork is preserved alongside optimized WebP copies. The athlete animation is an illustrative movement study, not validated biomechanics or form assessment.

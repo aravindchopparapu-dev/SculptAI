@@ -1,6 +1,8 @@
 .member-app .stage-environment {
   background-image: url('/studio-art.webp');
 }
+.member-admin-notice { margin: 22px auto; max-width: 1040px; border: 1px solid #79d9c085; background: #15372e; color: #e7fff4; border-radius: 16px; padding: 16px 20px; line-height: 1.55; }
+.member-admin-link { color: #b0eddf; margin-right: 20px; text-decoration: underline; text-underline-offset: 4px; }
 .member-app .glass {
   backdrop-filter: none;
   background: linear-gradient(

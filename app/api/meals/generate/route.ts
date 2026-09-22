@@ -4,6 +4,7 @@ import { getDb } from '@/db';
 import { Conflict, DuplicateOperation, readState, mutateState } from '@/lib/repository';
 import { mealPlanContext, validateMealFoods } from '@/lib/meal-plan';
 import { generateMealPlan } from '@/lib/meal-coach';
+import { readPublishedControl } from '@/lib/admin-control';
 export const dynamic = 'force-dynamic';
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers: { 'Cache-Control': 'private, no-store', Vary: 'Cookie' } });
 export async function POST(request: Request) {
@@ -18,13 +19,16 @@ export async function POST(request: Request) {
   if (!body || typeof body.operationId !== 'string' || !/^[0-9a-f-]{36}$/i.test(body.operationId)) return json({ error: 'Invalid request.' }, 400);
   try {
     const db = getDb();
+    const { control } = await readPublishedControl(db);
+    if (!control.features.meals) return json({ error: 'Meal plan generation is temporarily paused.' }, 503);
     const { state, revision } = await readState(db, user.userId);
     const context = mealPlanContext(state);
     if (JSON.stringify(validateMealFoods(body.foods)) !== JSON.stringify(context.foods) || body.targetId !== state.targets.at(-1)?.id)
       return json({ error: 'Your foods or Fuel targets changed. Refresh and try again.' }, 409);
     const runtime = env as unknown as { OPENAI_API_KEY?: string; OPENAI_MODEL?: string };
     const config = { OPENAI_API_KEY: runtime.OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-      OPENAI_MODEL: runtime.OPENAI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-luna' };
+      OPENAI_MODEL: runtime.OPENAI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-luna',
+      adminGuidance: control.guidance.meals };
     if (!config.OPENAI_API_KEY) return json({ error: 'Connect AI Coach before generating a meal plan. Your foods are saved.' }, 503);
     const now = Math.floor(Date.now() / 1000), expired = now - 3600;
     const reservation = await db.prepare(`INSERT INTO coach_limits (user_id, window_start, count) VALUES (?, ?, 1)

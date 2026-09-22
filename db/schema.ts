@@ -14,3 +14,22 @@ export const coachLimits = sqliteTable('coach_limits', {
   windowStart: integer('window_start').notNull(),
   count: integer('count').notNull(),
 });
+
+// Product controls are shared by web and future native clients. No member
+// health records or API credentials are stored in these tables.
+export const adminSettings = sqliteTable('admin_settings', {
+  id: integer('id').primaryKey(),
+  revision: integer('revision').notNull(),
+  publishedVersion: integer('published_version').notNull(),
+  draft: text('draft').notNull(),
+  published: text('published').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  updatedBy: text('updated_by').notNull(),
+});
+
+export const adminVersions = sqliteTable('admin_versions', {
+  version: integer('version').primaryKey(),
+  config: text('config').notNull(),
+  publishedAt: text('published_at').notNull(),
+  publishedBy: text('published_by').notNull(),
+});

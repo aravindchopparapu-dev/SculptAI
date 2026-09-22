@@ -2,6 +2,7 @@ import type { State } from './fitness.ts';
 import type { CoachConfig } from './live-coach.ts';
 import { mealPlanContext, validateMealDraft, type MealDraft } from './meal-plan.ts';
 import { MEAL_COACH_INSTRUCTIONS } from './meal-coach-instructions.ts';
+import { effectiveInstructions } from './admin-control.ts';
 export async function generateMealPlan(state: State, config: CoachConfig, request: typeof fetch = fetch) {
   const context = mealPlanContext(state);
   if (!config.OPENAI_API_KEY || !config.OPENAI_MODEL) throw new Error('Connect AI Coach to generate your meal plan. Your food list is saved.');
@@ -9,7 +10,7 @@ export async function generateMealPlan(state: State, config: CoachConfig, reques
     method: 'POST', headers: { Authorization: `Bearer ${config.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
     signal: AbortSignal.timeout(45000),
     body: JSON.stringify({ model: config.OPENAI_MODEL, store: false, max_output_tokens: Math.min(10000, 4000 + context.items.length * 180),
-      instructions: MEAL_COACH_INSTRUCTIONS,
+      instructions: effectiveInstructions(MEAL_COACH_INSTRUCTIONS, config.adminGuidance ?? ''),
       input: JSON.stringify({ task: 'Return the requested daily meal plan as JSON.', foods: context.items, diet: context.diet, exclusions: context.exclusions, targets: context.targets, maintenanceCalories: context.maintenanceCalories }),
       text: { format: { type: 'json_object' } },
     }),

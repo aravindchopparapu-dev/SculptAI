@@ -4,6 +4,7 @@ import { getDb } from '@/db';
 import { answerCoach } from '@/lib/live-coach';
 import { answerFuelExplanation, fuelExplanationFacts } from '@/lib/fuel-explanation';
 import { readState } from '@/lib/repository';
+import { readPublishedControl } from '@/lib/admin-control';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,6 +62,8 @@ export async function POST(request: Request) {
       return json({ error: 'Enter a question of 2–1000 characters.' }, 400);
 
     const db = getDb();
+    const { control } = await readPublishedControl(db);
+    if (!control.features.coach) return json({ error: 'AI Coach is temporarily paused.' }, 503);
     const { state } = await readState(db, user.userId);
     if (!state.profile)
       return json({ error: 'Complete your profile first.' }, 400);
@@ -76,6 +79,7 @@ export async function POST(request: Request) {
       OPENAI_API_KEY: runtime.OPENAI_API_KEY || process.env.OPENAI_API_KEY,
       OPENAI_MODEL:
         runtime.OPENAI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-luna',
+      adminGuidance: control.guidance.coach,
     };
     if (config.OPENAI_API_KEY && !(await reserveCoachRequest(db, user.userId)))
       return json(
