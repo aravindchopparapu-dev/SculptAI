@@ -36,7 +36,7 @@ export async function PUT(request: Request) {
   if (request.headers.get('origin') !== new URL(request.url).origin) return json({ error: 'Invalid request origin.' }, 403);
   if (!request.headers.get('content-type')?.startsWith('application/json')) return json({ error: 'Expected JSON.' }, 415);
   const raw = await request.text();
-  if (raw.length > 30000) return json({ error: 'Controls are too large.' }, 413);
+  if (raw.length > 60000) return json({ error: 'Controls are too large.' }, 413);
   let body: { action?: string; revision?: number; control?: unknown; version?: number };
   try { body = JSON.parse(raw); } catch { return json({ error: 'Invalid JSON.' }, 400); }
   if (!Number.isInteger(body.revision) || body.revision! < 0) return json({ error: 'Invalid revision.' }, 400);
