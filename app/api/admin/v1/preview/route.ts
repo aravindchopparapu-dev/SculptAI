@@ -41,7 +41,8 @@ export async function POST(request: Request) {
     if (!reservation.meta.changes) return json({ error: 'Preview limit reached. Try again in an hour.' }, 429);
     const state = createDemo(body.persona);
     const config = { OPENAI_API_KEY: key, OPENAI_MODEL: runtime.OPENAI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-luna',
-      adminGuidance: snapshot.draft.guidance[body.area as keyof typeof snapshot.draft.guidance] };
+      adminGuidance: snapshot.draft.guidance[body.area as keyof typeof snapshot.draft.guidance],
+      disabledExercises: snapshot.draft.disabledExercises };
     if (body.area === 'coach') {
       const result = await answerCoach(state, body.question!.trim(), config);
       if (result.mode !== 'openai') return json({ error: 'Live AI did not answer this preview. No settings were published.' }, 503);

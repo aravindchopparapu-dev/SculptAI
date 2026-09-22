@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { defaultControl, effectiveInstructions, isAdminUser, publishAdminDraft, readAdminSnapshot, readPublishedControl, restoreAdminDraft, saveAdminDraft, validateControl } from './admin-control.ts';
+import { eligibleExercises } from './custom-workout.ts';
+import { createDemo } from './demo.ts';
 
 function database() {
   const sqlite = new DatabaseSync(':memory:');
@@ -61,4 +63,13 @@ void test('Draft is private until publication; restore is a draft and stale writ
 void test('Owner guidance remains bounded and core instructions remain present', () => {
   assert.throws(() => validateControl({ ...defaultControl, guidance: { ...defaultControl.guidance, coach: 'x'.repeat(8001) } }), /8,000/);
   assert.match(effectiveInstructions('Core rules', 'Be concise'), /Core rules[\s\S]*Be concise[\s\S]*subordinate/);
+});
+
+void test('Hidden exercises leave future generation candidates while saved plans stay intact', () => {
+  const state = createDemo();
+  const name = 'Dumbbell bench press';
+  assert.equal(eligibleExercises(state.profile!, ['Chest']).some(item => item.name === name), true);
+  assert.equal(eligibleExercises(state.profile!, ['Chest'], [name]).some(item => item.name === name), false);
+  assert.ok(state.plans.length);
+  assert.throws(() => validateControl({ ...defaultControl, disabledExercises: ['Unknown movement'] }), /SculptAI library/);
 });
