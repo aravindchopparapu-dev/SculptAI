@@ -63,11 +63,13 @@ function writeScreenUrl(screen: StudioScreen) {
   url.searchParams.set('tab', tab);
   window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
 }
-export default function MemberStudio({ initialScreen, screenInUrl, initialMember, renderedAt }: {
+export default function MemberStudio({ initialScreen, screenInUrl, initialMember, renderedAt, isAdmin, memberNotice }: {
   initialScreen: StudioScreen;
   screenInUrl: boolean;
   initialMember: MemberSnapshot | null;
   renderedAt: number;
+  isAdmin: boolean;
+  memberNotice: string;
 }) {
   const member = useMember(initialMember),
     { state, user, loading, busy, error, saved, mutate } = member;
@@ -459,9 +461,11 @@ export default function MemberStudio({ initialScreen, screenInUrl, initialMember
             onProfile={() => setProfileOpen(true)}
           />
         )}
+        {memberNotice && user && <aside className="member-admin-notice" role="status">{memberNotice}</aside>}
         <footer className="member-footer">
           <span>sculptai · Your pace. Your progress.</span>
           <div>
+            {isAdmin && user && <a href="/admin" className="member-admin-link">Admin Control Centre</a>}
             <button onClick={() => setProfileOpen(true)}>Account & data</button>
           </div>
         </footer>

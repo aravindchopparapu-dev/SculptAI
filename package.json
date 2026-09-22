@@ -12,7 +12,7 @@
     "lint": "oxlint",
     "format": "oxfmt",
     "db:generate": "drizzle-kit generate",
-    "test": "node --experimental-strip-types --test lib/member.test.ts lib/studio.test.ts lib/live-coach.test.ts lib/insights-meals.test.ts lib/adaptation.test.ts lib/custom-workout.test.ts lib/exercise-media.test.ts lib/fuel-adaptation.test.ts lib/meal-plan.test.ts"
+    "test": "node --experimental-strip-types --test lib/member.test.ts lib/studio.test.ts lib/live-coach.test.ts lib/insights-meals.test.ts lib/adaptation.test.ts lib/custom-workout.test.ts lib/exercise-media.test.ts lib/fuel-adaptation.test.ts lib/meal-plan.test.ts lib/admin-control.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

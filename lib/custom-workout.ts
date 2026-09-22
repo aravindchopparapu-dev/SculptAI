@@ -3,6 +3,7 @@ import { additionalExercises } from './exercise-library.ts';
 import { assertCleared, estimateMinutes, normalizedState } from './adaptation.ts';
 import { exercises, type Plan, type Profile, type State } from './fitness.ts';
 import { WORKOUT_INSTRUCTIONS } from './workout-instructions.ts';
+import { effectiveInstructions } from './admin-control.ts';
 import { coachContext } from './live-coach.ts';
 
 export const muscleGroups = [
@@ -76,7 +77,7 @@ export function validateCustomWorkout(profile: Profile, selected: MuscleGroup[],
   return clean;
 }
 
-export async function generateCustomWorkout(state: State, selected: MuscleGroup[], config: { OPENAI_API_KEY?: string; OPENAI_MODEL?: string }, request: typeof fetch = fetch, previousExercises: string[] = []) {
+export async function generateCustomWorkout(state: State, selected: MuscleGroup[], config: { OPENAI_API_KEY?: string; OPENAI_MODEL?: string; adminGuidance?: string }, request: typeof fetch = fetch, previousExercises: string[] = []) {
   const baseProfile = state.profile;
   if (!baseProfile) throw new Error('Complete your profile first.');
   const readiness = workoutReadiness(state);
@@ -94,7 +95,7 @@ export async function generateCustomWorkout(state: State, selected: MuscleGroup[
     body: JSON.stringify({
       model: config.OPENAI_MODEL || 'gpt-5.6-luna', store: false, max_output_tokens: 2200,
       text: { format: { type: 'json_object' } },
-      instructions: WORKOUT_INSTRUCTIONS,
+      instructions: effectiveInstructions(WORKOUT_INSTRUCTIONS, config.adminGuidance ?? ''),
       input: JSON.stringify({ responseInstruction: 'Return the workout as a JSON object with exercises and rationale.', selectedMuscles: selected, readiness, movementCoverage, previousExercises, variationAvailable: allowed.some(e => !previousExercises.includes(e.name)), coverageByGroup: Object.fromEntries(selected.map(group => [group, groupExercises[group].filter(name => allowed.some(e => e.name === name))])), availableMinutes: profile.minutes, allowedExercises: allowed.map(({ name, pattern, cue }) => ({ name, pattern, cue })), savedRecords: coachContext(state) }),
     }),
   });

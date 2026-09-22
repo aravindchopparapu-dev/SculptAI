@@ -1,7 +1,8 @@
 import { coachReply, safetyResponse } from './coach.ts';
 import { nutrition, type State } from './fitness.ts';
 import { COACH_INSTRUCTIONS } from './coach-instructions.ts';
-export type CoachConfig = { OPENAI_API_KEY?: string; OPENAI_MODEL?: string };
+import { effectiveInstructions } from './admin-control.ts';
+export type CoachConfig = { OPENAI_API_KEY?: string; OPENAI_MODEL?: string; adminGuidance?: string };
 export function coachContext(state: State) {
   const p = state.profile;
   const metrics = state.metrics
@@ -92,7 +93,7 @@ export async function answerCoach(
         model: config.OPENAI_MODEL,
         store: false,
         max_output_tokens: 1800,
-        instructions: COACH_INSTRUCTIONS,
+        instructions: effectiveInstructions(COACH_INSTRUCTIONS, config.adminGuidance ?? ''),
         input: JSON.stringify({
           savedRecords: coachContext(state),
           question: message,
