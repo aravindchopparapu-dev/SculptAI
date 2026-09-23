@@ -34,18 +34,23 @@ enum Keychain {
         #endif
         return "com.sculptai.ios.account"
     }
-    static func read() -> String? {
+    static func read(service: String = Keychain.service) -> String? {
         var value: CFTypeRef?
         let result = SecItemCopyMatching([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: "session", kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne] as CFDictionary, &value)
         guard result == errSecSuccess, let data = value as? Data else { return nil }
         return String(data: data, encoding: .utf8)
     }
-    static func save(_ token: String) throws {
-        clear()
+    static func save(_ token: String, service: String = Keychain.service) throws {
+        clear(service: service)
         let result = SecItemAdd([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: "session", kSecValueData as String: Data(token.utf8), kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly] as CFDictionary, nil)
-        guard result == errSecSuccess else { throw ServiceError(message: "Unable to secure this session on your iPhone.") }
+        guard result == errSecSuccess else {
+            if result == errSecMissingEntitlement {
+                throw ServiceError(message: "This app build cannot save your sign-in securely. Reinstall a signed build of SculptAI and try again.")
+            }
+            throw ServiceError(message: "Unable to secure this session on your iPhone (Keychain error \(result)).")
+        }
     }
-    static func clear() { SecItemDelete([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service] as CFDictionary) }
+    static func clear(service: String = Keychain.service) { SecItemDelete([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service] as CFDictionary) }
 }
 
 // The system browser handles credentials; only an opaque completion state returns here.

@@ -1,6 +1,13 @@
 import XCTest
 @testable import SculptAI
 final class SculptAITests: XCTestCase {
+    func testAccountTokenCanBeSavedAndReadOnDevice() throws {
+        let testService = "com.sculptai.ios.keychain-tests"
+        defer { Keychain.clear(service: testService) }
+        let marker = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+        try Keychain.save(marker, service: testService)
+        XCTAssertEqual(Keychain.read(service: testService), marker)
+    }
     @MainActor func testSignInCallbackRequiresMatchingStateAndFixedDestination() {
         let state = UUID().uuidString
         XCTAssertTrue(NativeAccountSignIn.validCallback(URL(string: "sculptai://auth-complete?state=\(state)"), state: state))

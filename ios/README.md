@@ -8,7 +8,7 @@ Native SwiftUI companion for the existing SculptAI account and backend. The Xcod
 2. Open `ios/SculptAI.xcodeproj` in Xcode.
 3. Choose the **SculptAI** scheme and an installed iPhone Simulator; press Run.
 4. For a physical iPhone, select your Apple development team under Signing & Capabilities, connect the phone, and select it as the destination.
-5. In the app, choose **Create account** or **Sign in to existing account**. The secure system sign-in sheet uses the same ChatGPT account system as the website. Choose **Continue to SculptAI app** after authentication. The app returns automatically, loads existing records, and opens native profile setup for a new member. A manual connection code remains available as a fallback.
+5. In the app, choose **Create account** or **Sign in to existing account**. The secure system sign-in sheet uses the same ChatGPT account system as the website. After authentication, the app returns automatically, loads existing records, and opens native profile setup for a new member. A manual connection code remains available as a fallback.
 
 Pairing page: https://sculptai-v2-future-studio.aravindchopparapu-ch.chatgpt.site/connect
 Website: https://sculptai-v2-future-studio.aravindchopparapu-ch.chatgpt.site/
@@ -18,10 +18,10 @@ Command-line build after Xcode setup:
 ```sh
 xcodebuild -project ios/SculptAI.xcodeproj -scheme SculptAI \
   -destination 'generic/platform=iOS Simulator' \
-  -derivedDataPath ios/DerivedData CODE_SIGNING_ALLOWED=NO build
+  -derivedDataPath ios/DerivedData build
 ```
 
-To run tests, replace the generic destination with an installed Simulator, for example a simulator ID returned by `xcrun simctl list devices available`, and use `test` instead of `build`.
+Keep Xcode's default signing enabled, including for Simulator builds. An unsigned app can open the website and receive approval but cannot save its session in iOS Keychain (`errSecMissingEntitlement`), so it appears to return without signing in. To run tests, replace the generic destination with an installed Simulator, for example a simulator ID returned by `xcrun simctl list devices available`, and use `test` instead of `build`.
 
 ## Native experience
 

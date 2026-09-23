@@ -14,6 +14,13 @@ struct AccountView: View {
     @State private var polling = false
     var body: some View {
         Form {
+            if let error = store.error {
+                Section {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                        .accessibilityAddTraits(.updatesFrequently)
+                }
+            }
             if store.connected {
                 Section {
                     Label(store.state.profile?.name ?? "Your SculptAI account", systemImage: "person.crop.circle.fill").font(.headline)
