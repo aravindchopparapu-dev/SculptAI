@@ -1,7 +1,9 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { mobileConnectCallback } from '@/lib/mobile-connect';
 export default function ConnectPhone({ name, initialCode = '', appState = '' }: { name: string; initialCode?: string; appState?: string }) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
   const [code, setCode] = useState(initialCode), [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [done, setDone] = useState(false);
   async function approve() {
     setBusy(true); setMessage('');
@@ -20,7 +22,7 @@ export default function ConnectPhone({ name, initialCode = '', appState = '' }: 
     <p>Only approve a code you requested. This connects the phone to your profile, plans, and AI Coach for 30 days.</p>
     {!done && <form onSubmit={event => { event.preventDefault(); void approve(); }}><label hidden={Boolean(appState)} htmlFor="pair-code">iPhone pairing code</label>
       <input hidden={Boolean(appState)} id="pair-code" autoComplete="off" autoCapitalize="characters" value={code} onChange={e => setCode(e.target.value)} maxLength={14} required style={{ width: '100%', padding: 16, margin: '12px 0', color: '#eefaf6', background: '#0b1622', border: '1px solid #95c7b6', borderRadius: 12, fontSize: 22, letterSpacing: 3 }} />
-      <button disabled={busy || code.replace(/[\s-]/g, '').length !== 10} style={{ padding: '14px 24px', borderRadius: 30, background: '#b9f4d8', color: '#12332b' }}>{busy ? 'Connecting…' : appState ? 'Continue to SculptAI app' : 'Approve my iPhone'}</button></form>}
+      <button disabled={!ready || busy || code.replace(/[\s-]/g, '').length !== 10} style={{ padding: '14px 24px', borderRadius: 30, background: '#b9f4d8', color: '#12332b' }}>{busy ? 'Connecting…' : appState ? 'Continue to SculptAI app' : 'Approve my iPhone'}</button></form>}
     {done && mobileConnectCallback(appState) && <p><a href={mobileConnectCallback(appState)!} style={{ color: "#b9f4d8" }}>Return to SculptAI app</a></p>}
     {message && <p role={done ? 'status' : 'alert'}>{message}</p>}<p><a href="/" style={{ color: '#b9f4d8' }}>Back to SculptAI</a></p>
   </main>;
