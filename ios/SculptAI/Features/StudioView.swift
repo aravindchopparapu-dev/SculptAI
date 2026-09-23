@@ -45,7 +45,7 @@ struct StudioView: View {
                     Surface { VStack(alignment: .leading, spacing: 12) { Eyebrow(text: "Your daily Fuel"); HStack(alignment: .firstTextBaseline) { Text(Int(target.calories.rounded()).formatted()).font(.largeTitle.weight(.semibold)); Text("kcal target").foregroundStyle(.secondary); Spacer(); Image(systemName: "leaf").foregroundStyle(SculptStyle.mint) }; Text("Based on your saved goal and latest measurements.").font(.caption).foregroundStyle(.secondary); Button("Open Fuel") { tab = 2 } } }
                 }
             } else {
-                PrimaryAction(title: store.connected ? "Set up your profile" : "Connect your SculptAI account", icon: "arrow.up.right") { account = true }
+                PrimaryAction(title: store.connected ? "Set up your profile" : "Create account or sign in", icon: "arrow.up.right") { account = true }
                 EmptyCard(title: "A plan that starts with you", detail: "Set your starting point, choose the muscle groups you want to train, and let AI Coach build your session. No automatic or random workouts.", symbol: "figure.strengthtraining.traditional")
             }
         }.sculptScreen("Studio")

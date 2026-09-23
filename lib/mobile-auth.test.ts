@@ -43,3 +43,16 @@ void test('Expired, unknown, and already approved pairing codes cannot grant acc
   assert.equal(await authenticateMobile(db, 'Bearer malformed'), null);
   assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM mobile_sessions').get()?.n, 0);
 });
+
+void test('App sign-in preserves only validated connection parameters and a fixed callback', async () => {
+  const { mobileConnectParams, mobileConnectCallback } = await import('./mobile-connect.ts');
+  const state = '12345678-1234-1234-1234-123456789abc';
+  const valid = mobileConnectParams({ app: '1', code: 'abcdef1234', state });
+  assert.equal(valid.code, 'ABCDEF1234');
+  assert.match(valid.returnTo, /^\/connect\?app=1&code=ABCDEF1234&state=/);
+  assert.equal(mobileConnectCallback(state), `sculptai://auth-complete?state=${state}`);
+  for (const query of [{ app: '1', code: '//evil.test', state }, { app: '1', code: 'abcdef1234', state: 'https://evil.test' }, { app: '1', code: ['abcdef1234'], state }]) {
+    assert.equal(mobileConnectParams(query).returnTo, '/connect');
+  }
+  assert.equal(mobileConnectCallback('https://evil.test'), null);
+});

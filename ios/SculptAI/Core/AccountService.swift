@@ -47,3 +47,48 @@ enum Keychain {
     }
     static func clear() { SecItemDelete([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service] as CFDictionary) }
 }
+
+// The system browser handles credentials; only an opaque completion state returns here.
+import AuthenticationServices
+import UIKit
+
+@MainActor final class NativeAccountSignIn: NSObject, ASWebAuthenticationPresentationContextProviding {
+    private var session: ASWebAuthenticationSession?
+    func signIn(service: AccountService) async throws -> String {
+        let pair: PairingCode = try await service.request("api/mobile/pair", body: ["action": "begin"])
+        let state = UUID().uuidString
+        var url = URLComponents(url: AccountService.origin.appending(path: "connect"), resolvingAgainstBaseURL: false)!
+        url.queryItems = [URLQueryItem(name: "app", value: "1"), URLQueryItem(name: "code", value: pair.code), URLQueryItem(name: "state", value: state)]
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let auth = ASWebAuthenticationSession(url: url.url!, callbackURLScheme: "sculptai") { callback, error in
+                Task { @MainActor in
+                    self.session = nil
+                    if let error { continuation.resume(throwing: error); return }
+                    guard Self.validCallback(callback, state: state) else {
+                        continuation.resume(throwing: ServiceError(message: "Sign-in could not be verified. Please try again.")); return
+                    }
+                    continuation.resume()
+                }
+            }
+            auth.presentationContextProvider = self
+            session = auth
+            guard auth.start() else {
+                session = nil
+                continuation.resume(throwing: ServiceError(message: "Unable to open sign-in. Please try again.")); return
+            }
+        }
+        let result: PairingResult = try await service.request("api/mobile/pair", body: ["action": "poll", "deviceSecret": pair.deviceSecret])
+        guard let token = result.accessToken else { throw ServiceError(message: "Sign-in is not approved yet. Please try again.") }
+        return token
+    }
+    static func validCallback(_ url: URL?, state: String) -> Bool {
+        guard let url, url.scheme == "sculptai", url.host == "auth-complete", url.path.isEmpty,
+              let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+              query.count == 1, query.first?.name == "state", query.first?.value == state else { return false }
+        return true
+    }
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }?.windows.first { $0.isKeyWindow } ?? ASPresentationAnchor()
+    }
+}

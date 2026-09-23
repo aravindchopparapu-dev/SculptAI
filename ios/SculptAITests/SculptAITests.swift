@@ -1,6 +1,15 @@
 import XCTest
 @testable import SculptAI
 final class SculptAITests: XCTestCase {
+    @MainActor func testSignInCallbackRequiresMatchingStateAndFixedDestination() {
+        let state = UUID().uuidString
+        XCTAssertTrue(NativeAccountSignIn.validCallback(URL(string: "sculptai://auth-complete?state=\(state)"), state: state))
+        for address in ["sculptai://auth-complete?state=wrong", "https://auth-complete?state=\(state)", "sculptai://evil?state=\(state)", "sculptai://auth-complete?state=\(state)&state=other"] {
+            XCTAssertFalse(NativeAccountSignIn.validCallback(URL(string: address), state: state))
+        }
+        XCTAssertFalse(NativeAccountSignIn.validCallback(nil, state: state))
+    }
+
     func testMissingBodyMetricsCannotSave() {
         var profile = MemberProfile(); profile.name = "Test"; profile.height = 175
         XCTAssertNotNil(profile.validationMessage)

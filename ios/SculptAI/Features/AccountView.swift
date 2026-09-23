@@ -1,8 +1,13 @@
 import SwiftUI
+import AuthenticationServices
 
 struct AccountView: View {
     @Environment(SculptStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @State private var nativeSignIn = NativeAccountSignIn()
+    @State private var authenticating = false
+    @State private var setupProfile = false
+    @State private var showManualConnection = false
     @State private var pairing: PairingCode?
     @State private var pairingMessage = ""
     @State private var signingOut = false
@@ -22,8 +27,12 @@ struct AccountView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         Image(systemName: "iphone.gen3.radiowaves.left.and.right").font(.largeTitle).foregroundStyle(.tint)
                         Text("One account.\nEvery screen.").font(.largeTitle.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
-                        Text("Connect this iPhone to your existing SculptAI profile. Approve the code on the website while signed in.").foregroundStyle(.secondary)
+                        Text("Create your SculptAI account or sign in to continue. Your profile, plans, and AI Coach stay with you on the app and website.").foregroundStyle(.secondary)
                     }.padding(.vertical, 16)
+                    PrimaryAction(title: authenticating ? "Opening sign-in…" : "Create account", icon: "person.badge.plus", disabled: authenticating || store.busy) { Task { await openSignIn() } }
+                    Button("Sign in to existing account") { Task { await openSignIn() } }.disabled(authenticating || store.busy)
+                    Text("Continue securely with ChatGPT, just like on the website. New members set up their profile next.").font(.caption).foregroundStyle(.secondary)
+                    DisclosureGroup("Connect using a code instead", isExpanded: $showManualConnection) {
                     if let pairing {
                         Text(pairing.code.prefix(5) + "–" + pairing.code.suffix(5)).font(.title.monospaced().weight(.semibold)).textSelection(.enabled).accessibilityLabel("Pairing code \(pairing.code)")
                         Text("Code expires in 10 minutes.").font(.caption).foregroundStyle(.secondary)
@@ -33,7 +42,8 @@ struct AccountView: View {
                     }
                     Button(pairing == nil ? "Get my connection code" : "Get a new code") {
                         Task { _ = await store.perform { pairing = try await store.service.request("api/mobile/pair", body: ["action": "begin"]); pairingMessage = "" } }
-                    }.disabled(store.busy)
+                    }.disabled(store.busy || authenticating)
+                    }
                 }
             }
             Section("About SculptAI") {
@@ -41,8 +51,21 @@ struct AccountView: View {
                 Link("Open SculptAI website", destination: AccountService.origin)
                 Text("AI guidance is an estimate. Review plans before using them.").font(.caption).foregroundStyle(.secondary)
             }
-        }.navigationTitle("Your account").toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
+        }.navigationDestination(isPresented: $setupProfile) { ProfileView(profile: store.state.profile ?? MemberProfile()) }
+        .navigationTitle("Your account").toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
             .confirmationDialog("Disconnect this iPhone?", isPresented: $signingOut, titleVisibility: .visible) { Button("Disconnect and clear this phone", role: .destructive) { Task { await store.disconnect() } } } message: { Text("Your website account and saved records are retained. This phone’s session and offline copy will be removed.") }
+    }
+    private func openSignIn() async {
+        guard !authenticating else { return }
+        authenticating = true; store.error = nil
+        defer { authenticating = false }
+        do {
+            let token = try await nativeSignIn.signIn(service: store.service)
+            try await store.finishPairing(token)
+            setupProfile = store.state.profile == nil
+        } catch let error as ASWebAuthenticationSessionError where error.code == .canceledLogin {
+            // Cancellation leaves the member signed out without an error alert.
+        } catch { store.error = error.localizedDescription }
     }
     private func checkPairing(_ pairing: PairingCode) async {
         polling = true; defer { polling = false }

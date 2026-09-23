@@ -3,7 +3,7 @@ final class SculptAIUITests: XCTestCase {
     @MainActor func testMainNavigationAndAccountConnection() {
         let app = XCUIApplication(); app.launchArguments = ["--ui-testing"]; app.launch()
         XCTAssertTrue(app.navigationBars["Studio"].waitForExistence(timeout: 10))
-        let connectButton = app.buttons["Connect your SculptAI account"]
+        let connectButton = app.buttons["Create account or sign in"]
         XCTAssertTrue(connectButton.exists)
         XCTAssertGreaterThanOrEqual(connectButton.frame.minX, 0)
         XCTAssertLessThanOrEqual(connectButton.frame.maxX, app.frame.width)
@@ -13,9 +13,15 @@ final class SculptAIUITests: XCTestCase {
         }
         app.buttons["account"].tap()
         XCTAssertTrue(app.navigationBars["Your account"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Create account"].exists)
+        XCTAssertTrue(app.buttons["Sign in to existing account"].exists)
+        app.buttons["Connect using a code instead"].tap()
         XCTAssertTrue(app.buttons["Get my connection code"].exists)
         app.buttons["Get my connection code"].tap()
-        XCTAssertTrue(app.buttons["I approved this iPhone"].waitForExistence(timeout: 30))
+        let code = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Pairing code ")).firstMatch
+        XCTAssertTrue(code.waitForExistence(timeout: 30))
+        app.swipeUp()
+        XCTAssertTrue(app.buttons["I approved this iPhone"].waitForExistence(timeout: 5))
         app.buttons["I approved this iPhone"].tap()
         XCTAssertTrue(app.staticTexts["Waiting for approval. Enter this code on the SculptAI website first."].waitForExistence(timeout: 15))
         let account = XCTAttachment(screenshot: app.screenshot())
