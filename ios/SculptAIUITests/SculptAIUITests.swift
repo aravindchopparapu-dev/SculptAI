@@ -1,5 +1,25 @@
 import XCTest
 final class SculptAIUITests: XCTestCase {
+    @MainActor func testStudioDateAndAccountStatusStayVisibleDuringScrolling() {
+        let app = XCUIApplication(); app.launchArguments = ["--ui-testing"]; app.launch()
+        let date = app.staticTexts["studio.date"]
+        let accountButton = app.buttons["account"]
+        XCTAssertTrue(date.waitForExistence(timeout: 10))
+        for index in 0..<3 {
+            app.swipeUp()
+            XCTAssertTrue(date.isHittable)
+            XCTAssertTrue(accountButton.isHittable)
+            if index == 0 {
+                let capture = XCTAttachment(screenshot: app.screenshot())
+                capture.name = "Studio with fixed date and account row after scrolling"
+                capture.lifetime = .keepAlways
+                add(capture)
+            }
+            app.swipeDown()
+            XCTAssertTrue(date.isHittable)
+            XCTAssertTrue(accountButton.isHittable)
+        }
+    }
     @MainActor func testMainNavigationAndAccountConnection() {
         let app = XCUIApplication(); app.launchArguments = ["--ui-testing"]; app.launch()
         XCTAssertTrue(app.navigationBars["Studio"].waitForExistence(timeout: 10))
