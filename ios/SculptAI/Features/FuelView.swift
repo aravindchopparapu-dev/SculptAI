@@ -5,6 +5,7 @@ struct FuelView: View {
     @State private var editing = false
     @State private var explanation: String?
     @State private var expanded = true
+    @State private var generatingMealPlan = false
     var body: some View {
         PageScroll {
             VStack(alignment: .leading, spacing: 8) { Eyebrow(text: "Fuel your next chapter"); Text("Eat with intention.").font(.largeTitle.weight(.semibold)); Text("Your foods, shaped around your goals.").foregroundStyle(.secondary) }
@@ -35,7 +36,13 @@ struct FuelView: View {
                 HStack { Text("Your food choices").font(.title2.weight(.semibold)); Spacer(); Button(store.state.mealFoods == nil ? "Add foods" : "Edit", systemImage: "square.and.pencil") { editing = true } }
                 if let foods = store.state.mealFoods {
                     Surface { VStack(alignment: .leading, spacing: 16) { ForEach(mealSlots, id: \.0) { key, label in if let items = foods[key], !items.isEmpty { VStack(alignment: .leading, spacing: 5) { Text(label).font(.headline); Text(items.joined(separator: ", ")).font(.subheadline).foregroundStyle(.secondary) } } }; Label("Food choices saved", systemImage: "checkmark.circle").font(.caption).foregroundStyle(.secondary) } }
-                    PrimaryAction(title: store.state.mealPlan == nil ? "Generate my meal plan" : "Regenerate my meal plan", icon: "sparkles", disabled: store.busy || store.configuration?.features.meals == false) { Task { _ = await store.perform { let snapshot: MemberSnapshot = try await store.service.request("api/meals/generate", body: ["foods": foods, "targetId": target.id, "operationId": UUID().uuidString]); store.accept(snapshot) } } }
+                    PrimaryAction(title: generatingMealPlan ? "Building your meal plan…" : (store.state.mealPlan == nil ? "Generate my meal plan" : "Regenerate my meal plan"), icon: "sparkles", disabled: generatingMealPlan || store.busy || store.configuration?.features.meals == false) { Task { await generatePlan(foods: foods, targetId: target.id) } }
+                    if generatingMealPlan {
+                        ProgressView("AI Coach is checking portions and nutrition…")
+                            .font(.subheadline)
+                            .padding(.vertical, 8)
+                            .accessibilityAddTraits(.updatesFrequently)
+                    }
                 } else { EmptyCard(title: "Food you actually enjoy", detail: "Add foods for breakfast, lunch, and dinner. Snacks are optional. AI Coach will suggest practical portions and explain helpful additions.", symbol: "fork.knife") }
                 if let plan = store.state.mealPlan {
                     if !store.state.mealPlanIsCurrent { Label("Your foods or targets changed. Regenerate to update the saved plan below.", systemImage: "arrow.triangle.2.circlepath").font(.subheadline).foregroundStyle(.secondary) }
@@ -54,6 +61,15 @@ struct FuelView: View {
             .sheet(isPresented: $editing) { NavigationStack { FoodChoicesView(foods: store.state.mealFoods ?? [:]) } }
     }
     private func macro(_ title: String, value: Double, color: Color) -> some View { VStack(alignment: .leading, spacing: 8) { Capsule().fill(color).frame(height: 4); Text("\(Int(value.rounded())) g").font(.headline).monospacedDigit(); Text(title).font(.caption).foregroundStyle(.secondary) }.frame(maxWidth: .infinity, alignment: .leading) }
+    private func generatePlan(foods: [String: [String]], targetId: String) async {
+        guard !generatingMealPlan else { return }
+        generatingMealPlan = true
+        defer { generatingMealPlan = false }
+        _ = await store.perform {
+            let snapshot: MemberSnapshot = try await store.service.request("api/meals/generate", body: ["foods": foods, "targetId": targetId, "operationId": UUID().uuidString])
+            store.accept(snapshot)
+        }
+    }
 }
 struct FoodChoicesView: View {
     @Environment(SculptStore.self) private var store

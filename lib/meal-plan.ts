@@ -56,6 +56,11 @@ const countPortion = (grams: number, each: number, singular: string, plural: str
   if (count < step || count > 12 || Math.abs(grams - count * each) / (count * each) > 0.15) return null;
   return `${count} ${count === 1 ? singular : plural}`;
 };
+const safePortionLabel = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const label = value.trim();
+  return /^\d+(?:\.5)? [a-z][a-z -]{0,39}$/i.test(label) && !/\b(?:g|grams?)\b/i.test(label) ? label : undefined;
+};
 export function mealPortionLabel(item: PortionItem): string {
   const food = item.food.toLowerCase().trim();
   const simpleEgg = food.replace(/[(),]/g, ' ').replace(/\b(whole|boiled|poached|fried|scrambled|cooked|raw|organic)\b/g, '').replace(/\s+/g, ' ').trim();
@@ -107,14 +112,15 @@ export function validateMealDraft(state: State, value: unknown): Pick<SavedMealP
       }
       if (!Number.isFinite(item.grams) || item.grams < 1 || item.grams > 800 || typeof item.basis !== 'string' || !item.basis.trim() || item.basis.length > 180)
         throw new Error('AI Coach returned an unclear portion. Please try again.');
-      if (item.portionLabel !== undefined && (typeof item.portionLabel !== 'string' || !/^\d+(?:\.5)? [a-z][a-z -]{0,39}$/i.test(item.portionLabel.trim()) || /\b(?:g|grams?)\b/i.test(item.portionLabel)))
-        throw new Error('AI Coach returned an unclear serving unit. Please try again.');
+      // A household label is presentation only. Keep the validated edible weight
+      // and fall back to grams when the model supplies an unclear label.
+      const portionLabel = safePortionLabel(item.portionLabel);
       const m = item.per100g;
       if (!m || ['protein', 'carbs', 'fat'].some(key => !Number.isFinite(m[key as keyof typeof m]) || m[key as keyof typeof m] < 0 || m[key as keyof typeof m] > 100) || m.protein + m.carbs + m.fat > 105)
         throw new Error('AI Coach returned invalid nutrient estimates. Please try again.');
       const totals = { protein: m.protein * item.grams / 100, carbs: m.carbs * item.grams / 100, fat: m.fat * item.grams / 100,
         calories: (4 * m.protein + 4 * m.carbs + 9 * m.fat) * item.grams / 100 };
-      return { foodId: item.foodId, food: food?.food ?? item.suggestedFood!.trim(), ...(suggestion ? { suggestedFood: item.suggestedFood!.trim(), reason: item.reason!.trim() } : {}), ...(item.portionLabel ? { portionLabel: item.portionLabel.trim() } : {}), grams: item.grams, basis: item.basis.trim(), per100g: { protein: m.protein, carbs: m.carbs, fat: m.fat }, totals };
+      return { foodId: item.foodId, food: food?.food ?? item.suggestedFood!.trim(), ...(suggestion ? { suggestedFood: item.suggestedFood!.trim(), reason: item.reason!.trim() } : {}), ...(portionLabel ? { portionLabel } : {}), grams: item.grams, basis: item.basis.trim(), per100g: { protein: m.protein, carbs: m.carbs, fat: m.fat }, totals };
     });
     return { slot: meal.slot, items, totals: items.reduce((sum, item) => add(sum, item.totals), zero()) };
   });

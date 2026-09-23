@@ -37,7 +37,10 @@ void test('Optional household labels survive validation without changing nutrien
   assert.equal(plan.meals[0].items[0].portionLabel, '1 bowl');
   assert.equal(plan.totals.calories, 2227.5);
   withLabel.meals[0].items[0].portionLabel = '225 grams';
-  assert.throws(() => validateMealDraft(setup(), withLabel), /serving unit/);
+  const fallback = validateMealDraft(setup(), withLabel);
+  assert.equal(fallback.meals[0].items[0].portionLabel, undefined);
+  assert.equal(mealPortionLabel(fallback.meals[0].items[0]), '225 g');
+  assert.equal(fallback.totals.calories, plan.totals.calories);
 });
 void test('Breakfast, lunch and dinner are mandatory; snack sections may be blank', async () => {
   assert.deepEqual(validateMealFoods(foods), foods);
@@ -80,6 +83,7 @@ void test('AI receives saved foods and Fuel targets, handles refusal/failure, an
   }) as typeof fetch;
   await generateMealPlan(s, { OPENAI_API_KEY: 'test', OPENAI_MODEL: 'test' }, request);
   assert.equal(payload.store, false); assert.match(payload.input as string, /JSON/); assert.match(payload.input as string, /breakfast-0/); assert.ok(!(payload.input as string).includes('Synthetic member'));
+  assert.deepEqual(payload.reasoning, { effort: 'low' });
   assert.deepEqual(s, before);
   await assert.rejects(generateMealPlan(s, { OPENAI_API_KEY: 'test', OPENAI_MODEL: 'test' }, (async () => new Response('', { status: 503 })) as typeof fetch), /unavailable/);
   await assert.rejects(generateMealPlan(s, {}, request), /Connect AI/);

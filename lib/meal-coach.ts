@@ -9,7 +9,8 @@ export async function generateMealPlan(state: State, config: CoachConfig, reques
   const response = await request('https://api.openai.com/v1/responses', {
     method: 'POST', headers: { Authorization: `Bearer ${config.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
     signal: AbortSignal.timeout(45000),
-    body: JSON.stringify({ model: config.OPENAI_MODEL, store: false, max_output_tokens: Math.min(10000, 4000 + context.items.length * 180),
+    body: JSON.stringify({ model: config.OPENAI_MODEL, store: false, reasoning: { effort: 'low' },
+      max_output_tokens: Math.min(8500, 3200 + context.items.length * 145),
       instructions: effectiveInstructions(MEAL_COACH_INSTRUCTIONS, config.adminGuidance ?? ''),
       input: JSON.stringify({ task: 'Return the requested daily meal plan as JSON.', foods: context.items, diet: context.diet, exclusions: context.exclusions, targets: context.targets, maintenanceCalories: context.maintenanceCalories }),
       text: { format: { type: 'json_object' } },
