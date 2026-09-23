@@ -7,7 +7,7 @@ struct FuelView: View {
     @State private var expanded = true
     @State private var generatingMealPlan = false
     var body: some View {
-        PageScroll {
+        PageScroll(lazy: true) {
             VStack(alignment: .leading, spacing: 8) { Eyebrow(text: "Fuel your next chapter"); Text("Eat with intention.").font(.largeTitle.weight(.semibold)); Text("Your foods, shaped around your goals.").foregroundStyle(.secondary) }
             if let target = store.state.targets.last {
                 Surface {
@@ -24,7 +24,7 @@ struct FuelView: View {
                 }
                 Surface {
                     if let explanation {
-                        DisclosureGroup("Understand your Fuel goals", isExpanded: $expanded) { Text(.init(explanation)).font(.subheadline).padding(.top, 12).textSelection(.enabled) }
+                        DisclosureGroup("Understand your Fuel goals", isExpanded: $expanded) { Text(.init(explanation)).font(.subheadline).padding(.top, 12) }
                     } else {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Understand your Fuel goals").font(.headline)

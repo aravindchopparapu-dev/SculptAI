@@ -70,9 +70,21 @@ struct EmptyCard: View {
     }
 }
 struct PageScroll<Content: View>: View {
+    let lazy: Bool
     @ViewBuilder let content: Content
+    init(lazy: Bool = false, @ViewBuilder content: () -> Content) {
+        self.lazy = lazy
+        self.content = content()
+    }
     var body: some View {
-        ScrollView { VStack(alignment: .leading, spacing: 20) { content }.padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 36).frame(maxWidth: 720).frame(maxWidth: .infinity).background(StableScrollEdges()) }
+        ScrollView {
+            Group {
+                if lazy { LazyVStack(alignment: .leading, spacing: 20) { content } }
+                else { VStack(alignment: .leading, spacing: 20) { content } }
+            }
+            .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 36)
+            .frame(maxWidth: 720).frame(maxWidth: .infinity).background(StableScrollEdges())
+        }
             .background { SculptBackground() }
     }
 }
@@ -87,13 +99,12 @@ private struct StableScrollEdges: UIViewRepresentable {
 }
 private final class StableScrollMarker: UIView {
     override func didMoveToWindow() { super.didMoveToWindow(); configure() }
-    override func layoutSubviews() { super.layoutSubviews(); configure() }
     func configure() {
         var ancestor = superview
         while let view = ancestor {
             if let scrollView = view as? UIScrollView {
-                scrollView.bounces = false
-                scrollView.alwaysBounceVertical = false
+                if scrollView.bounces { scrollView.bounces = false }
+                if scrollView.alwaysBounceVertical { scrollView.alwaysBounceVertical = false }
                 return
             }
             ancestor = view.superview
