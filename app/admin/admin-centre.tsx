@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import BrandMark from '../brand-mark';
 import { Activity, ArrowLeft, ArrowUpRight, Check, CircleHelp, Dumbbell, FlaskConical, LockKeyhole, RotateCcw, Save, Settings2, ShieldCheck, Sparkles } from 'lucide-react';
 import { defaultControl, type AdminSnapshot, type AppControl } from '@/lib/admin-control';
 import { demoPersonas } from '@/lib/demo';
@@ -77,7 +78,7 @@ export default function AdminCentre({ initial }: { initial: AdminData }) {
   return <div className="admin-shell">
     <a className="admin-skip" href="#admin-main">Skip to controls</a>
     <aside className="admin-sidebar" aria-label="Admin navigation">
-      <a className="admin-brand" href="/?tab=studio"><span className="admin-mark">S</span><span>sculptai <small>CONTROL CENTRE</small></span></a>
+      <a className="admin-brand" href="/?tab=studio"><BrandMark /><span>sculptai <small>CONTROL CENTRE</small></span></a>
       <div className="admin-owner"><ShieldCheck size={18}/><span>Owner workspace<small>{data.owner.email}</small></span></div>
       <nav aria-label="Admin sections">{sections.map(item => <button key={item.id} type="button" className={section === item.id ? 'selected' : ''}
         aria-current={section === item.id ? 'page' : undefined} onClick={() => { setSection(item.id); setError(''); setMessage(''); }}>

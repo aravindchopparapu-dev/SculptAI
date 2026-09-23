@@ -1,4 +1,5 @@
 'use client';
+import BrandMark from './brand-mark';
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import {
   ArrowUpRight,
@@ -9,7 +10,6 @@ import {
   Clock3,
   Flame,
   Heart,
-  Layers3,
   Maximize2,
   Pause,
   Play,
@@ -157,9 +157,7 @@ export default function FutureStudio() {
       <div className="ambient-background" />
       <header className="navigation">
         <a className="logo" href="/">
-          <span>
-            <Layers3 size={22} />
-          </span>
+          <BrandMark />
           sculpt<span className="logo-ai">ai</span>
           <small>STUDIO / 02</small>
         </a>

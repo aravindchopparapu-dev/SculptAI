@@ -1,11 +1,11 @@
 'use client';
 import { displayTimestamp } from '@/lib/display-date';
+import BrandMark from './brand-mark';
 import './member.css';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowRight,
   Download,
-  Layers3,
   LogIn,
   LogOut,
   Settings2,
@@ -203,9 +203,7 @@ export default function MemberStudio({ initialScreen, screenInUrl, initialMember
       </a>
       <header className="navigation">
         <a className="logo" href="/">
-          <span>
-            <Layers3 size={22} />
-          </span>
+          <BrandMark />
           sculpt<span className="logo-ai">ai</span>
           <small>STUDIO / 02</small>
         </a>
