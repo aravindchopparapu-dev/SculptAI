@@ -6,6 +6,7 @@ export type ChatGPTUser = {
   displayName: string;
   email: string;
   fullName: string | null;
+  authMethod?: 'mobile';
 };
 
 const USER_ID_HEADER = 'oai-authenticated-user-id';
@@ -20,6 +21,11 @@ const CALLBACK_PATH = '/callback';
 
 export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
   const requestHeaders = await headers();
+  if (requestHeaders.get('authorization')?.startsWith('Bearer ')) {
+    const [{ authenticateMobile }, { getDb }] = await Promise.all([import('@/lib/mobile-auth'), import('@/db')]);
+    try { return await authenticateMobile(getDb(), requestHeaders.get('authorization')); }
+    catch { return null; }
+  }
   const userId = requestHeaders.get(USER_ID_HEADER);
   const email = requestHeaders.get(USER_EMAIL_HEADER);
   if (!userId || !email) return null;

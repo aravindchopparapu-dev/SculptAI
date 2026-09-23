@@ -32,7 +32,7 @@ export type AdminSnapshot = {
 type AdminEnvironment = { SCULPTAI_ADMIN_USER_ID?: string; SCULPTAI_ADMIN_EMAIL?: string };
 
 export function isAdminUser(user: ChatGPTUser | null, config: AdminEnvironment): boolean {
-  if (!user) return false;
+  if (!user || user.authMethod === 'mobile') return false;
   const ownerId = config.SCULPTAI_ADMIN_USER_ID?.trim();
   const ownerEmail = config.SCULPTAI_ADMIN_EMAIL?.trim().toLowerCase();
   return Boolean((ownerId && user.userId === ownerId) ||

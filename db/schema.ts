@@ -33,3 +33,18 @@ export const adminVersions = sqliteTable('admin_versions', {
   publishedAt: text('published_at').notNull(),
   publishedBy: text('published_by').notNull(),
 });
+
+export const mobilePairings = sqliteTable('mobile_pairings', {
+  deviceHash: text('device_hash').primaryKey(),
+  code: text('code').notNull().unique(),
+  expiresAt: integer('expires_at').notNull(),
+  userId: text('user_id'),
+  displayName: text('display_name'),
+  consumed: integer('consumed').notNull().default(0),
+});
+export const mobileSessions = sqliteTable('mobile_sessions', {
+  tokenHash: text('token_hash').primaryKey(),
+  userId: text('user_id').notNull(),
+  displayName: text('display_name').notNull(),
+  expiresAt: integer('expires_at').notNull(),
+});

@@ -40,3 +40,8 @@ next-env.d.ts
 
 # Worker local secrets
 .dev.vars*
+
+# Native build output and local signing state
+ios/DerivedData/
+ios/build/
+**/xcuserdata/
