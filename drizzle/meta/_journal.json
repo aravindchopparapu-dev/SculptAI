@@ -15,6 +15,13 @@
       "when": 1790119120759,
       "tag": "0001_flaky_sleeper",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790127082895,
+      "tag": "0002_cool_mastermind",
+      "breakpoints": true
     }
   ]
 }

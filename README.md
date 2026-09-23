@@ -63,3 +63,7 @@ Quaternius Superhero Male from Universal Base Characters, CC0 1.0. Creator: http
 ## Reference data
 
 lib/food-data.ts retains the USDA FoodData Central SR Legacy records used by the reference meal calculations. AI meal estimates and suggested serving sizes are estimates; branded product labels can differ. Asset attribution and source references remain in the repository.
+
+## iPhone companion
+
+The native SwiftUI project is in `ios/SculptAI.xcodeproj`; see `ios/README.md` for Xcode setup, account pairing, and current verification status. Mobile pairing starts at `/api/mobile/pair` and is approved by the signed-in member at `/connect`. Device sessions reuse the member APIs and published Coach instructions. They expire after 30 days, store only token hashes on the server, and are explicitly denied Admin access. The additive `0002_cool_mastermind.sql` migration preserves existing records. The public site entry point permits native API requests; member data still requires web authentication or a valid paired-device session.
