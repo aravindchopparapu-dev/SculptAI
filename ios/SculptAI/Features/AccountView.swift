@@ -23,7 +23,7 @@ struct AccountView: View {
             }
             if store.connected {
                 Section {
-                    Label(store.state.profile?.name ?? "Your SculptAI account", systemImage: "person.crop.circle.fill").font(.headline)
+                    Label(store.state.profile?.name ?? "Your SculptAI account", systemImage: "person.crop.circle.fill").font(.headline).stableScrollEdges()
                     if let date = store.lastSynced { Text("Synced \(date.formatted(date: .abbreviated, time: .shortened))").font(.caption).foregroundStyle(.secondary) }
                     NavigationLink(store.state.profile == nil ? "Set up profile" : "Edit profile") { ProfileView(profile: store.state.profile ?? MemberProfile()) }
                     Button("Refresh account") { Task { _ = await store.perform { try await store.refresh() } } }
@@ -35,7 +35,7 @@ struct AccountView: View {
                         Image(systemName: "iphone.gen3.radiowaves.left.and.right").font(.largeTitle).foregroundStyle(.tint)
                         Text("One account.\nEvery screen.").font(.largeTitle.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
                         Text("Create your SculptAI account or sign in to continue. Your profile, plans, and AI Coach stay with you on the app and website.").foregroundStyle(.secondary)
-                    }.padding(.vertical, 16)
+                    }.padding(.vertical, 16).stableScrollEdges()
                     PrimaryAction(title: authenticating ? "Opening sign-in…" : "Create account", icon: "person.badge.plus", disabled: authenticating || store.busy) { Task { await openSignIn() } }
                     Button("Sign in to existing account") { Task { await openSignIn() } }.disabled(authenticating || store.busy)
                     Text("Continue securely with ChatGPT, just like on the website. New members set up their profile next.").font(.caption).foregroundStyle(.secondary)
@@ -59,7 +59,7 @@ struct AccountView: View {
                 Text("AI guidance is an estimate. Review plans before using them.").font(.caption).foregroundStyle(.secondary)
             }
         }.navigationDestination(isPresented: $setupProfile) { ProfileView(profile: store.state.profile ?? MemberProfile()) }
-        .navigationTitle("Your account").toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
+        .navigationTitle("Your account").navigationBarTitleDisplayMode(.inline).toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
             .confirmationDialog("Disconnect this iPhone?", isPresented: $signingOut, titleVisibility: .visible) { Button("Disconnect and clear this phone", role: .destructive) { Task { await store.disconnect() } } } message: { Text("Your website account and saved records are retained. This phone’s session and offline copy will be removed.") }
     }
     private func openSignIn() async {
@@ -97,7 +97,7 @@ struct ProfileView: View {
     var body: some View {
         Form {
             Section("Your starting point") {
-                TextField("Preferred name", text: $profile.name).textContentType(.givenName)
+                TextField("Preferred name", text: $profile.name).textContentType(.givenName).stableScrollEdges()
                 TextField("Age (18+)", text: $age).keyboardType(.numberPad)
                 Picker("Sex for energy estimate", selection: $profile.sex) { Text("Not specified").tag(""); Text("Female").tag("Female"); Text("Male").tag("Male") }
                 NumberEntry(title: "Height", unit: "cm", text: $height)
@@ -156,7 +156,7 @@ struct CheckInView: View {
     var body: some View {
         Form {
             Section("A new point on your journey") {
-                DatePicker("Date", selection: $date, in: ...Date(), displayedComponents: .date)
+                DatePicker("Date", selection: $date, in: ...Date(), displayedComponents: .date).stableScrollEdges()
                 NumberEntry(title: "Current weight", unit: "kg", text: $weight)
                 HStack { Text("Waist (optional)"); TextField("cm", text: $waist).keyboardType(.decimalPad).multilineTextAlignment(.trailing) }
                 HStack { Text("Body fat (optional)"); TextField("%", text: $bodyFat).keyboardType(.decimalPad).multilineTextAlignment(.trailing) }
@@ -164,7 +164,7 @@ struct CheckInView: View {
             }
             Section { Text("Use similar measurement conditions for clearer trends. New check-ins can update your Fuel estimates.").font(.subheadline).foregroundStyle(.secondary) }
             Section { Button("Save check-in") { Task { await save() } }.disabled(store.busy || decimal(weight) == nil) }
-        }.navigationTitle("Check in").toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }.scrollDismissesKeyboard(.interactively)
+        }.navigationTitle("Check in").navigationBarTitleDisplayMode(.inline).toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }.scrollDismissesKeyboard(.interactively)
     }
     private func save() async {
         guard let kg = decimal(weight), (30...350).contains(kg) else { store.error = "Enter a weight between 30 and 350 kg."; return }

@@ -50,7 +50,7 @@ struct FuelView: View {
                     Text(plan.notes).font(.caption).foregroundStyle(.secondary)
                 }
             } else { EmptyCard(title: "Start with your body metrics", detail: "Connect your account and complete your profile, including starting and target weight. Your saved Fuel targets will appear here.", symbol: "leaf.circle") }
-        }.sculptScreen("Fuel").refreshable { explanation = nil; _ = await store.perform { try await store.refresh() } }
+        }.sculptScreen("Fuel")
             .sheet(isPresented: $editing) { NavigationStack { FoodChoicesView(foods: store.state.mealFoods ?? [:]) } }
     }
     private func macro(_ title: String, value: Double, color: Color) -> some View { VStack(alignment: .leading, spacing: 8) { Capsule().fill(color).frame(height: 4); Text("\(Int(value.rounded())) g").font(.headline).monospacedDigit(); Text(title).font(.caption).foregroundStyle(.secondary) }.frame(maxWidth: .infinity, alignment: .leading) }
@@ -63,7 +63,7 @@ struct FoodChoicesView: View {
     @State private var error: String?
     var body: some View {
         Form {
-            Section { Text("Enter each food on its own line. Include preparation and brand when useful.").font(.subheadline).foregroundStyle(.secondary) }
+            Section { Text("Enter each food on its own line. Include preparation and brand when useful.").font(.subheadline).foregroundStyle(.secondary).stableScrollEdges() }
             ForEach(Array(mealSlots.enumerated()), id: \.offset) { index, slot in
                 Section(slot.1 + (index < 3 ? " · Required" : " · Optional")) {
                     TextField("Foods you enjoy", text: Binding(get: { entries[slot.0] ?? "" }, set: { entries[slot.0] = $0 }), axis: .vertical).lineLimit(3...8).textInputAutocapitalization(.sentences)
@@ -71,7 +71,7 @@ struct FoodChoicesView: View {
             }
             if let error { Text(error).foregroundStyle(.red) }
             Section { Button("Save food choices") { Task { await save() } }.disabled(store.busy) }
-        }.navigationTitle("Your food choices").toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+        }.navigationTitle("Your food choices").navigationBarTitleDisplayMode(.inline).toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
             .onAppear { entries = foods.mapValues { $0.joined(separator: "\n") } }.scrollDismissesKeyboard(.interactively)
     }
     private func save() async {

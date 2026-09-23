@@ -49,7 +49,6 @@ struct StudioView: View {
                 EmptyCard(title: "A plan that starts with you", detail: "Set your starting point, choose the muscle groups you want to train, and let AI Coach build your session. No automatic or random workouts.", symbol: "figure.strengthtraining.traditional")
             }
         }.sculptScreen("Studio")
-            .refreshable { _ = await store.perform { try await store.refresh() } }
             .sheet(isPresented: $checkIn) { NavigationStack { CheckInView() } }
             .sheet(isPresented: $account) { NavigationStack { AccountView() } }
     }

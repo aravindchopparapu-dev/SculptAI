@@ -10,6 +10,11 @@ final class SculptAIUITests: XCTestCase {
         for name in ["Training", "Fuel", "Insights", "Coach", "Studio"] {
             app.tabBars.buttons[name].tap()
             XCTAssertTrue(app.navigationBars[name == "Coach" ? "AI Coach" : name].exists)
+            app.swipeUp()
+            app.swipeDown()
+            XCTAssertTrue(app.navigationBars[name == "Coach" ? "AI Coach" : name].exists)
+            XCTAssertTrue(app.tabBars.buttons[name].exists)
+            XCTAssertFalse(app.staticTexts["Working…"].exists)
         }
         app.buttons["account"].tap()
         XCTAssertTrue(app.navigationBars["Your account"].waitForExistence(timeout: 3))

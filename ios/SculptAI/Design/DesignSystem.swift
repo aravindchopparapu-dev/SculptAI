@@ -72,10 +72,37 @@ struct EmptyCard: View {
 struct PageScroll<Content: View>: View {
     @ViewBuilder let content: Content
     var body: some View {
-        ScrollView { VStack(alignment: .leading, spacing: 20) { content }.padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 36).frame(maxWidth: 720).frame(maxWidth: .infinity) }
+        ScrollView { VStack(alignment: .leading, spacing: 20) { content }.padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 36).frame(maxWidth: 720).frame(maxWidth: .infinity).background(StableScrollEdges()) }
             .background { SculptBackground() }
     }
 }
+// SwiftUI has no no-bounce setting for long scroll views; configure the nearest hosting scroll view.
+private struct StableScrollEdges: UIViewRepresentable {
+    func makeUIView(context: Context) -> StableScrollMarker {
+        let marker = StableScrollMarker()
+        marker.isUserInteractionEnabled = false
+        return marker
+    }
+    func updateUIView(_ view: StableScrollMarker, context: Context) { view.configure() }
+}
+private final class StableScrollMarker: UIView {
+    override func didMoveToWindow() { super.didMoveToWindow(); configure() }
+    override func layoutSubviews() { super.layoutSubviews(); configure() }
+    func configure() {
+        var ancestor = superview
+        while let view = ancestor {
+            if let scrollView = view as? UIScrollView {
+                scrollView.bounces = false
+                scrollView.alwaysBounceVertical = false
+                return
+            }
+            ancestor = view.superview
+        }
+    }
+}
 extension View {
-    func sculptScreen(_ title: String) -> some View { navigationTitle(title).toolbarBackground(.automatic, for: .navigationBar) }
+    func stableScrollEdges() -> some View { background(StableScrollEdges()) }
+}
+extension View {
+    func sculptScreen(_ title: String) -> some View { navigationTitle(title).navigationBarTitleDisplayMode(.inline).toolbarBackground(.automatic, for: .navigationBar) }
 }
