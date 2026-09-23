@@ -14,16 +14,16 @@ struct StudioView: View {
                 Label(store.connected ? "Your account" : "Welcome", systemImage: store.connected ? "checkmark.icloud" : "sparkle").font(.caption).foregroundStyle(.secondary)
             }
             ZStack(alignment: .bottomLeading) {
-                Image("Studio").resizable().scaledToFill().frame(height: heroHeight).clipped()
+                Color.clear.overlay { Image("Studio").resizable().scaledToFill().accessibilityHidden(true) }.clipped()
                 LinearGradient(colors: [.clear, .black.opacity(0.88)], startPoint: .top, endPoint: .bottom)
                 VStack(alignment: .leading, spacing: 14) {
                     Text("BUILT AROUND YOU").font(.caption.weight(.semibold)).tracking(2.4).foregroundStyle(SculptStyle.mint)
                     Text(store.state.profile == nil ? "Your next chapter\nstarts here." : "Make today\nyour own.")
-                        .font(.largeTitle.weight(.semibold)).tracking(-1.2).fixedSize(horizontal: false, vertical: true)
+                        .font(.largeTitle.weight(.semibold)).tracking(-1.2).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("studio.headline")
                     Text(store.state.profile.map { "\($0.name.components(separatedBy: " ").first ?? $0.name), let’s move with purpose." } ?? "A personal space for training, food, and the progress that matters.")
                         .font(.subheadline).foregroundStyle(.white.opacity(0.85))
                 }.padding(24).foregroundStyle(.white)
-            }.frame(height: heroHeight).clipShape(RoundedRectangle(cornerRadius: 30)).accessibilityElement(children: .combine)
+            }.frame(height: heroHeight).clipShape(RoundedRectangle(cornerRadius: 30)).accessibilityElement(children: .combine).accessibilityIdentifier("studio.hero")
             if let notice = store.configuration?.memberNotice, !notice.isEmpty { Surface { Label(notice, systemImage: "info.circle").font(.subheadline) } }
             if let profile = store.state.profile {
                 HStack(spacing: 14) {

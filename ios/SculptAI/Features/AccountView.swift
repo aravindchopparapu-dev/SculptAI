@@ -21,7 +21,7 @@ struct AccountView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 16) {
                         Image(systemName: "iphone.gen3.radiowaves.left.and.right").font(.largeTitle).foregroundStyle(.tint)
-                        Text("One account.\nEvery screen.").font(.largeTitle.weight(.semibold))
+                        Text("One account.\nEvery screen.").font(.largeTitle.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
                         Text("Connect this iPhone to your existing SculptAI profile. Approve the code on the website while signed in.").foregroundStyle(.secondary)
                     }.padding(.vertical, 16)
                     if let pairing {

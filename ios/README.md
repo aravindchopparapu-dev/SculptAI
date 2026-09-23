@@ -4,7 +4,7 @@ Native SwiftUI companion for the existing SculptAI account and backend. The Xcod
 
 ## Open and run
 
-1. Review and accept Xcode’s license on this Mac: `sudo xcodebuild -license`.
+1. Install Xcode and an iOS Simulator runtime. If prompted, review Xcode’s license with `sudo xcodebuild -license`. This Mac is already configured.
 2. Open `ios/SculptAI.xcodeproj` in Xcode.
 3. Choose the **SculptAI** scheme and an installed iPhone Simulator; press Run.
 4. For a physical iPhone, select your Apple development team under Signing & Capabilities, connect the phone, and select it as the destination.
@@ -48,4 +48,4 @@ Native tabs and navigation, semantic typography and colors, accessible control l
 
 Backend unit and browser integration checks cover pending/approved pairing, anonymous denial, replay denial, expiry, revocation, member reads, and Admin denial. The project also includes native model tests and a navigation UI test.
 
-Initial implementation status: Xcode compilation and Simulator checks are pending license acceptance on this Mac. Do not treat this as an App Store release. Before distribution, complete real-device account pairing and AI flow checks, large-text and VoiceOver testing, signing, privacy disclosure review, screenshots, and TestFlight validation.
+Development build verified with Xcode 27 and the iOS 27 iPhone 18 Pro Simulator. The app and test targets compile; native tests exercise model validation, baseline/current-weight handling, backend decoding, all five tabs, account presentation, Studio control bounds, and live pairing initiation/pending approval. Simulator inspection caught and corrected Studio artwork widening the page and a truncated account heading. All four native tests passed on 2026-09-22. Studio was visually checked in dark mode and light mode with accessibility-medium text. The live pairing check requires network access and creates an unapproved, expiring code without modifying member records. The preview uses `serve-sim` because this Xcode installation does not include the standalone Simulator application. This remains a development build, not an App Store release. Before distribution, complete real-device account pairing and AI flow checks, large-text and VoiceOver testing, signing, privacy disclosure review, screenshots, and TestFlight validation.
