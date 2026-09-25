@@ -2,7 +2,7 @@ import type { ChatGPTUser } from '../app/chatgpt-auth.ts';
 import { COACH_INSTRUCTIONS } from './coach-instructions.ts';
 import { exercises } from './fitness.ts';
 import { MEAL_COACH_INSTRUCTIONS } from './meal-coach-instructions.ts';
-import { WORKOUT_INSTRUCTIONS } from './workout-instructions.ts';
+import { WORKOUT_INSTRUCTIONS, LEGACY_WORKOUT_INSTRUCTIONS } from './workout-instructions.ts';
 
 export type AppControl = {
   instructionVersion: 2;
@@ -73,6 +73,7 @@ export function validateControl(value: unknown): AppControl {
 
 function normalizeInstructions(base: string, saved: string, isFullInstructions: boolean): string {
   const text = saved.trim();
+  if (base === WORKOUT_INSTRUCTIONS && text === LEGACY_WORKOUT_INSTRUCTIONS) return WORKOUT_INSTRUCTIONS;
   if (isFullInstructions) {
     if (!text) throw new Error('Instructions cannot be empty. Restore the default if needed.');
     return text;

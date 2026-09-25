@@ -1,3 +1,4 @@
+import { LEGACY_WORKOUT_INSTRUCTIONS, WORKOUT_INSTRUCTIONS } from './workout-instructions.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
@@ -88,4 +89,11 @@ void test('Hidden exercises leave future generation candidates while saved plans
   assert.equal(eligibleExercises(state.profile!, ['Chest'], [name]).some(item => item.name === name), false);
   assert.ok(state.plans.length);
   assert.throws(() => validateControl({ ...defaultControl, disabledExercises: ['Unknown movement'] }), /SculptAI library/);
+});
+
+void test('Legacy workout defaults upgrade without replacing owner custom instructions', () => {
+  const migrated = validateControl({ ...defaultControl, guidance: { ...defaultControl.guidance, workouts: LEGACY_WORKOUT_INSTRUCTIONS } });
+  assert.equal(migrated.guidance.workouts, WORKOUT_INSTRUCTIONS);
+  const custom = validateControl({ ...defaultControl, guidance: { ...defaultControl.guidance, workouts: 'My personalized owner guidance.' } });
+  assert.equal(custom.guidance.workouts, 'My personalized owner guidance.');
 });

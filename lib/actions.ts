@@ -129,7 +129,7 @@ export function applyAction(input: State, action: Action): State {
       id: crypto.randomUUID(), created: new Date().toISOString(),
       selectedMuscles, day, readinessId: readiness.id,
       replacesPlanId: typeof action.replacesPlanId === 'string' ? action.replacesPlanId : undefined,
-      rationale: typeof action.rationale === 'string' ? action.rationale.slice(0, 600) : '',
+      rationale: typeof action.rationale === 'string' ? action.rationale.slice(0, 1600) : '',
       profile: structuredClone(state.profile),
     };
   } else if (action.type === 'deleteWorkout') {

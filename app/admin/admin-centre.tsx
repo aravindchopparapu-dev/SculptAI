@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import BrandMark from '../brand-mark';
 import { Activity, ArrowLeft, ArrowUpRight, Check, CircleHelp, Dumbbell, FlaskConical, LockKeyhole, RotateCcw, Save, Settings2, ShieldCheck, Sparkles } from 'lucide-react';
+import { SESSION_PLANNING_RULES } from '@/lib/workout-prescription';
 import { defaultControl, type AdminSnapshot, type AppControl } from '@/lib/admin-control';
 import { demoPersonas } from '@/lib/demo';
 import { exercises } from '@/lib/fitness';
@@ -107,6 +108,7 @@ export default function AdminCentre({ initial }: { initial: AdminData }) {
       {section === 'coach' && <div className="admin-two-col admin-lab">
         <section className="admin-card"><p className="admin-eyebrow">INSTRUCTION STUDIO</p><h2>AI Coach instructions</h2><p>Edit the complete instructions for Coach answers, workout plans, or meal plans. Fixed server safety and data rules still apply.</p>
           <div className="admin-segment" role="group" aria-label="Instruction area">{areas.map(key => <button key={key} type="button" className={area === key ? 'active' : ''} onClick={() => { setArea(key); setPreview(''); }}>{areaNames[key]}</button>)}</div>
+          {area === 'workouts' && <details className="admin-field-note"><summary>Required readiness, time and volume rules</summary><p>These rules apply to every workout, including custom instructions below. Low readiness may shorten the recommended session, with an explanation to the member.</p><pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{SESSION_PLANNING_RULES}</pre></details>}
           <label className="admin-label" htmlFor="admin-guidance">Full instructions · {areaNames[area]}</label>
           <textarea id="admin-guidance" value={draft.guidance[area]} maxLength={16000} rows={18} onChange={event => changeGuidance(event.target.value)} />
           <div className="admin-field-note"><span>Saved draft: {data.snapshot.revision} · Live version: {data.snapshot.publishedVersion}</span><span>{draft.guidance[area].length}/16,000</span></div>

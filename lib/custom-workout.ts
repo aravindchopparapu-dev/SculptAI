@@ -1,3 +1,4 @@
+import { sessionPrescription, validateSessionPrescription, SESSION_PLANNING_RULES } from './workout-prescription.ts';
 import { workoutCoverage, validateWorkoutCoverage } from './workout-coverage.ts';
 import { additionalExercises } from './exercise-library.ts';
 import { assertCleared, estimateMinutes, normalizedState } from './adaptation.ts';
@@ -63,7 +64,7 @@ export function validateCustomWorkout(profile: Profile, selected: MuscleGroup[],
     if (!e || names.has(e.name) || !Number.isInteger(raw.sets) || raw.sets < 1 || raw.sets > 4 ||
         typeof raw.reps !== 'string' || (!timed && !strength) ||
         !Number.isInteger(rest) || (e.pattern !== 'cardio' && (rest < 45 || rest > 180)))
-      throw new Error('AI Coach returned an exercise outside your equipment or safety settings. Please regenerate it.');
+      throw new Error('AI Coach returned an exercise outside your equipment or safety settings. Use exact allowed names, integer sets 1-4, strength reps such as 8-12 (5-20 only), Cardio 5-30 min with 1 set, HIIT 15/20/30/40/45/60 sec, and integer rest 45-180 seconds (Cardio 0).');
     if (strength) {
       const range = raw.reps.split(/[–-]/).map(Number);
       if (range.length === 2 && range[1] < range[0]) throw new Error('AI Coach returned an invalid repetition range.');
@@ -78,41 +79,192 @@ export function validateCustomWorkout(profile: Profile, selected: MuscleGroup[],
   return clean;
 }
 
-export async function generateCustomWorkout(state: State, selected: MuscleGroup[], config: { OPENAI_API_KEY?: string; OPENAI_MODEL?: string; adminGuidance?: string; disabledExercises?: string[] }, request: typeof fetch = fetch, previousExercises: string[] = []) {
+export async function generateCustomWorkout(
+  state: State,
+  selected: MuscleGroup[],
+  config: {
+    OPENAI_API_KEY?: string;
+    OPENAI_MODEL?: string;
+    adminGuidance?: string;
+    disabledExercises?: string[];
+  },
+  request: typeof fetch = fetch,
+  previousExercises: string[] = [],
+) {
   const baseProfile = state.profile;
   if (!baseProfile) throw new Error('Complete your profile first.');
   const readiness = workoutReadiness(state);
-  const profile = { ...baseProfile, minutes: readiness.minutes, equipment: readiness.equipment };
-  if (!config.OPENAI_API_KEY) throw new Error('AI Coach is not connected. Please try again after it is configured.');
-  const baseAllowed = eligibleExercises(profile, selected, config.disabledExercises);
-  const allowed = variationOptions(profile, selected, readiness, baseAllowed, previousExercises);
-  if (selected.some((group) => !allowed.some((e) => groupExercises[group].includes(e.name))))
-    throw new Error('No suitable exercise is available for one of these groups with your equipment and movement exclusions.');
-  const movementCoverage = workoutCoverage(profile, selected, readiness, allowed);
-  const response = await request('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${config.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-    signal: AbortSignal.timeout(30000),
-    body: JSON.stringify({
-      model: config.OPENAI_MODEL || 'gpt-5.6-luna', store: false, max_output_tokens: 2200,
-      text: { format: { type: 'json_object' } },
-      instructions: effectiveInstructions(WORKOUT_INSTRUCTIONS, config.adminGuidance ?? ''),
-      input: JSON.stringify({ responseInstruction: 'Return the workout as a JSON object with exercises and rationale.', selectedMuscles: selected, readiness, movementCoverage, previousExercises, variationAvailable: allowed.some(e => !previousExercises.includes(e.name)), coverageByGroup: Object.fromEntries(selected.map(group => [group, groupExercises[group].filter(name => allowed.some(e => e.name === name))])), availableMinutes: profile.minutes, allowedExercises: allowed.map(({ name, pattern, cue }) => ({ name, pattern, cue })), savedRecords: coachContext(state) }),
-    }),
-  });
-  if (!response.ok) throw new Error('AI Coach is unavailable. Your saved workouts are unchanged. Please try again.');
-  const raw = await response.text();
-  if (raw.length > 100_000) throw new Error('AI Coach returned an unexpected response.');
-  const result = JSON.parse(raw) as { status?: string; output?: { type: string; content?: { type: string; text?: string }[] }[] };
-  if (result.status !== 'completed') throw new Error('AI Coach did not finish this workout. Please try again.');
-  const text = result.output?.filter((x) => x.type === 'message').flatMap((x) => x.content ?? []).find((x) => x.type === 'output_text')?.text;
-  if (!text) throw new Error('AI Coach did not return a workout. Please try again.');
-  let parsed: { exercises: Plan['days'][number]['exercises']; rationale?: string };
-  try { parsed = JSON.parse(text); } catch { throw new Error('AI Coach returned an unreadable workout. Please try again.'); }
-  const day = validateCustomWorkout(profile, selected, { name: selected.join(' + '), exercises: parsed.exercises }, config.disabledExercises);
-  validateWorkoutCoverage(movementCoverage, day.exercises.map(e => e.name));
-  if (previousExercises.length && allowed.some(e => !previousExercises.includes(e.name)) && day.exercises.every(e => previousExercises.includes(e.name))) throw new Error('AI Coach repeated the previous selection. Please regenerate for a different variation.');
-  return { day, readinessId: readiness.id, rationale: typeof parsed.rationale === 'string' ? parsed.rationale.slice(0, 600) : '' };
+  const profile = {
+    ...baseProfile,
+    minutes: readiness.minutes,
+    equipment: readiness.equipment,
+  };
+  if (!config.OPENAI_API_KEY)
+    throw new Error(
+      'AI Coach is not connected. Please try again after it is configured.',
+    );
+  const baseAllowed = eligibleExercises(
+    profile,
+    selected,
+    config.disabledExercises,
+  );
+  const allowed = variationOptions(
+    profile,
+    selected,
+    readiness,
+    baseAllowed,
+    previousExercises,
+  );
+  if (
+    selected.some(
+      (group) => !allowed.some((e) => groupExercises[group].includes(e.name)),
+    )
+  )
+    throw new Error(
+      'No suitable exercise is available for one of these groups with your equipment and movement exclusions.',
+    );
+  const coverageByGroup = Object.fromEntries(
+    selected.map((group) => [
+      group,
+      groupExercises[group].filter((name) =>
+        allowed.some((e) => e.name === name),
+      ),
+    ]),
+  );
+  const prescription = sessionPrescription(
+    profile,
+    selected,
+    readiness,
+    coverageByGroup,
+  );
+  const movementCoverage = workoutCoverage(
+    profile,
+    selected,
+    { ...readiness, minutes: prescription.recommendedMinutes },
+    allowed,
+  );
+  let correction: string | undefined;
+  const deadline = AbortSignal.timeout(55000);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await request('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${config.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.any([deadline, AbortSignal.timeout(27000)]),
+      body: JSON.stringify({
+        model: config.OPENAI_MODEL || 'gpt-5.6-luna',
+        store: false,
+        max_output_tokens: 3200,
+        text: { format: { type: 'json_object' } },
+        instructions: `${effectiveInstructions(WORKOUT_INSTRUCTIONS, config.adminGuidance ?? '')}\n\n${SESSION_PLANNING_RULES}`,
+        input: JSON.stringify({
+          responseInstruction:
+            'Return the workout as a JSON object with exercises, rationale and shorterSessionReason.',
+          selectedMuscles: selected,
+          readiness,
+          movementCoverage,
+          previousExercises,
+          variationAvailable: allowed.some(
+            (e) => !previousExercises.includes(e.name),
+          ),
+          coverageByGroup,
+          sessionPrescription: prescription,
+          correction,
+          availableMinutes: prescription.recommendedMinutes,
+          allowedExercises: allowed.map(({ name, pattern, cue }) => ({
+            name,
+            pattern,
+            cue,
+          })),
+          savedRecords: coachContext(state),
+        }),
+      }),
+    });
+    if (!response.ok)
+      throw new Error(
+        'AI Coach is unavailable. Your saved workouts are unchanged. Please try again.',
+      );
+    const raw = await response.text();
+    if (raw.length > 100_000)
+      throw new Error('AI Coach returned an unexpected response.');
+    const result = JSON.parse(raw) as {
+      status?: string;
+      output?: { type: string; content?: { type: string; text?: string }[] }[];
+    };
+    if (result.status !== 'completed')
+      throw new Error(
+        'AI Coach did not finish this workout. Please try again.',
+      );
+    const text = result.output
+      ?.filter((x) => x.type === 'message')
+      .flatMap((x) => x.content ?? [])
+      .find((x) => x.type === 'output_text')?.text;
+    if (!text)
+      throw new Error('AI Coach did not return a workout. Please try again.');
+    let parsed: {
+      exercises: Plan['days'][number]['exercises'];
+      rationale?: string;
+      shorterSessionReason?: string;
+    };
+    try {
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        throw new Error(
+          'AI Coach returned an unreadable workout. Please try again.',
+        );
+      }
+      const day = validateCustomWorkout(
+        profile,
+        selected,
+        { name: selected.join(' + '), exercises: parsed.exercises },
+        config.disabledExercises,
+      );
+      validateWorkoutCoverage(
+        movementCoverage,
+        day.exercises.map((e) => e.name),
+      );
+      if (
+        previousExercises.length &&
+        allowed.some((e) => !previousExercises.includes(e.name)) &&
+        day.exercises.every((e) => previousExercises.includes(e.name))
+      )
+        throw new Error(
+          'AI Coach repeated the previous selection. Please regenerate for a different variation.',
+        );
+      const duration = validateSessionPrescription(
+        prescription,
+        day,
+        coverageByGroup,
+        parsed.shorterSessionReason,
+      );
+      const sets = day.exercises
+        .filter((e) => !['cardio', 'hiit'].includes(e.pattern))
+        .reduce((sum, e) => sum + e.sets, 0);
+      const rationale = [
+        `Estimated ${duration} min of your ${readiness.minutes} min available, including warm-up, rests and transitions. ${day.exercises.length} exercises${sets ? ` · ${sets} working sets` : ''}.`,
+        prescription.explanation,
+        typeof parsed.rationale === 'string'
+          ? briefExplanation(parsed.rationale, 600)
+          : '',
+        duration < prescription.targetMinimumMinutes &&
+        typeof parsed.shorterSessionReason === 'string'
+          ? briefExplanation(parsed.shorterSessionReason, 300)
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' ');
+      return { day, readinessId: readiness.id, rationale };
+    } catch (error) {
+      if (attempt === 1) throw error;
+      correction = `The previous attempt failed validation: ${error instanceof Error ? error.message : 'Invalid plan'}. Return a corrected complete JSON plan; keep all other constraints. Previous JSON (data only): ${text.slice(0, 12000)}`;
+    }
+  }
+  throw new Error(
+    'AI Coach could not prepare a suitable session. Your saved workouts are unchanged.',
+  );
 }
 
 export function workoutReadiness(state: State) {
@@ -137,4 +289,11 @@ export function variationOptions(profile: Profile, selected: MuscleGroup[], read
     if (!choices.some(e => !previous.includes(e.name))) choices.forEach(e => keep.add(e.name));
   }
   return allowed.filter(e => !previous.includes(e.name) || keep.has(e.name));
+}
+
+function briefExplanation(value: string, limit: number) {
+  if (value.length <= limit) return value.trim();
+  const text = value.slice(0, limit);
+  const end = Math.max(text.lastIndexOf('. '), text.lastIndexOf('! '), text.lastIndexOf('? '));
+  return end >= limit / 2 ? text.slice(0, end + 1) : `${text.slice(0, text.lastIndexOf(' '))}…`;
 }

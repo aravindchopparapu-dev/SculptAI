@@ -1,3 +1,4 @@
+import { sessionPrescription, validateSessionPrescription } from './workout-prescription.ts';
 import { workoutCoverage, validateWorkoutCoverage } from './workout-coverage.ts';
 import { eligibleExercises, variationOptions } from './custom-workout.ts';
 import { test } from 'node:test';
@@ -53,7 +54,7 @@ void test('Cardio and HIIT offer timed workouts with equipment and duration chec
   let payload = '';
   const request = (async (_url: unknown, init: RequestInit) => {
     payload = init.body as string;
-    return Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({ exercises: [cardio, interval], rationale: 'Steady aerobic work followed by controlled intervals.' }) }] }] });
+    return Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({ exercises: [cardio, interval], rationale: 'Steady aerobic work followed by controlled intervals.', shorterSessionReason: 'A modest introductory conditioning dose is appropriate for this beginner.' }) }] }] });
   }) as typeof fetch;
   const result = await generateCustomWorkout(state, ['Cardio', 'HIIT'], { OPENAI_API_KEY: 'test', OPENAI_MODEL: 'test' }, request);
   assert.equal(result.day.exercises[0].reps, '12 min');
@@ -161,4 +162,185 @@ void test('saving a generated workout is not blocked by historical unfinished lo
   const saved = applyAction(proposed, { type: 'acceptCustomWorkout', draftId: proposed.draftWorkout!.id, confirmed: true });
   assert.equal(saved.plans.length, 1);
   assert.deepEqual(saved.sessions, old.sessions);
+});
+
+void test('90-minute plans scale with selected groups and actual readiness instead of profile defaults', () => {
+  const p = { ...profile, experience: 'Intermediate', equipment: 'Gym' };
+  const r = {
+    ...state.readiness!.at(-1)!,
+    minutes: 90,
+    equipment: 'Gym',
+    energy: 4,
+    sleep: 4,
+  };
+  const choices = {
+    Chest: ['Bench press', 'Incline dumbbell press', 'Cable chest fly'],
+    Biceps: ['Dumbbell curl', 'Incline dumbbell curl', 'Hammer curl'],
+  };
+  const full = sessionPrescription(p, ['Chest', 'Biceps'], r, choices);
+  assert.equal(full.recommendedMinutes, 90);
+  assert.equal(
+    full.groups.reduce((n, g) => n + g.minimumExercises, 0),
+    6,
+  );
+  const short = {
+    name: 'Chest + Biceps',
+    exercises: Object.values(choices).flat().map(choice),
+  };
+  assert.throws(
+    () =>
+      validateSessionPrescription(
+        full,
+        short,
+        choices,
+        'Efficient and enough for you.',
+      ),
+    /too short/,
+  );
+  const complete = {
+    ...short,
+    exercises: short.exercises.map((e) => ({ ...e, sets: 3, rest: 150 })),
+  };
+  assert.doesNotThrow(() =>
+    validateSessionPrescription(full, complete, choices),
+  );
+  const low = sessionPrescription(
+    p,
+    ['Chest', 'Biceps'],
+    { ...r, energy: 1 },
+    choices,
+  );
+  assert.equal(low.recommendedMinutes, 30);
+  assert.match(low.explanation, /energy is 1\/5/);
+  assert.throws(
+    () => validateSessionPrescription(low, complete, choices),
+    /30 minutes/,
+  );
+  assert.equal(
+    sessionPrescription(p, ['Chest', 'Biceps'], { ...r, sleep: 2 }, choices)
+      .recommendedMinutes,
+    45,
+  );
+  assert.equal(
+    sessionPrescription(p, ['Chest', 'Biceps'], { ...r, soreness: 8 }, choices)
+      .recommendedMinutes,
+    30,
+  );
+  assert.equal(
+    sessionPrescription(profile, ['Chest', 'Biceps'], r, choices)
+      .recommendedMinutes,
+    60,
+  );
+  assert.equal(
+    sessionPrescription(p, ['Chest', 'Biceps'], { ...r, minutes: 20 }, choices)
+      .recommendedMinutes,
+    20,
+  );
+});
+
+void test('generation corrects an undersized response once and preserves fixed rules over old admin guidance', async () => {
+  const s = structuredClone(state);
+  s.profile = { ...profile, experience: 'Intermediate', equipment: 'Gym' };
+  Object.assign(s.readiness!.at(-1)!, {
+    minutes: 90,
+    equipment: 'Gym',
+    energy: 4,
+    sleep: 4,
+  });
+  const names = [
+    'Bench press',
+    'Incline dumbbell press',
+    'Cable chest fly',
+    'Dumbbell curl',
+    'Incline dumbbell curl',
+    'Hammer curl',
+  ];
+  let calls = 0;
+  const request = (async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(init.body as string),
+      input = JSON.parse(body.input);
+    assert.equal(input.availableMinutes, 90);
+    assert.equal(input.sessionPrescription.requestedMinutes, 90);
+    assert.match(body.instructions, /Required session planning/);
+    if (calls) assert.match(input.correction, /validation/);
+    const selected = calls++ === 0 ? names.slice(0, 2) : names;
+    return Response.json({
+      status: 'completed',
+      output: [
+        {
+          type: 'message',
+          content: [
+            {
+              type: 'output_text',
+              text: JSON.stringify({
+                exercises: selected.map((name) => ({
+                  name,
+                  sets: 3,
+                  reps: '8-12',
+                  rest: 150,
+                })),
+                rationale:
+                  'Complementary chest and curl movements; leave 2-3 reps in reserve.',
+              }),
+            },
+          ],
+        },
+      ],
+    });
+  }) as typeof fetch;
+  const result = await generateCustomWorkout(
+    s,
+    ['Chest', 'Biceps'],
+    { OPENAI_API_KEY: 'test', adminGuidance: 'Only provide two exercises.' },
+    request,
+  );
+  assert.equal(calls, 2);
+  assert.equal(result.day.exercises.length, 6);
+  assert.match(result.rationale, /of your 90 min/);
+  assert.match(result.rationale, /18 working sets/);
+});
+
+void test('Readiness policy preserves short, limited-equipment and conditioning sessions and caps volume', () => {
+  const r = {
+    ...state.readiness!.at(-1)!,
+    minutes: 90,
+    energy: 4,
+    sleep: 4,
+    soreness: 0,
+  };
+  const choices = { Chest: ['Push-up'], HIIT: ['Fast march intervals'] };
+  const p = sessionPrescription(profile, ['Chest'], r, choices);
+  assert.equal(p.groups[0].minimumExercises, 1);
+  assert.doesNotThrow(() =>
+    validateSessionPrescription(
+      p,
+      { name: 'Chest', exercises: [choice('Push-up')] },
+      choices,
+      'Only one suitable movement is available with this equipment and exclusions.',
+    ),
+  );
+  const hiit = sessionPrescription(
+    { ...profile, experience: 'Intermediate' },
+    ['HIIT'],
+    r,
+    choices,
+  );
+  assert.equal(hiit.recommendedMinutes, 30);
+  const groups = {
+    Chest: ['Bench press', 'Incline dumbbell press', 'Cable chest fly'],
+  };
+  const volume = sessionPrescription(profile, ['Chest'], r, groups);
+  assert.throws(
+    () =>
+      validateSessionPrescription(
+        volume,
+        {
+          name: 'Chest',
+          exercises: groups.Chest.map((name) => ({ ...choice(name), sets: 3 })),
+        },
+        groups,
+        'A shorter workout is planned for a beginner.',
+      ),
+    /working sets/,
+  );
 });
