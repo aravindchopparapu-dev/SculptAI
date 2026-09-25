@@ -157,6 +157,8 @@ export function ProfileForm({
   onSave: (p: Profile) => Promise<void>;
 }) {
   const [p, setP] = useState(initial);
+  const [openedProfile, setOpenedProfile] = useState(initial);
+  const profileChangedElsewhere = JSON.stringify(openedProfile) !== JSON.stringify(initial);
   const [photoError, setPhotoError] = useState('');
   const [photoBusy, setPhotoBusy] = useState(false);
   async function choosePhoto(file?: File) {
@@ -200,7 +202,7 @@ export function ProfileForm({
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        void onSave(p);
+        if (!profileChangedElsewhere) void onSave(p);
       }}
       className="member-form profile-manual-entry"
       onWheelCapture={(event) => {
@@ -211,6 +213,14 @@ export function ProfileForm({
         if (event.target instanceof HTMLInputElement && event.target.type === 'number' && ['ArrowUp', 'ArrowDown'].includes(event.key)) event.preventDefault();
       }}
     >
+      {profileChangedElsewhere && (
+        <div className="member-alert" role="status">
+          Your profile changed on another device. Load the latest version before saving to avoid replacing those changes.
+          <button type="button" className="action-secondary" onClick={() => { setP(initial); setOpenedProfile(initial); }}>
+            Load latest profile
+          </button>
+        </div>
+      )}
       <div className="profile-photo-controls">
         {photo ? <img className="profile-photo-preview" src={photo} alt="Your avatar" />
           : <div className="profile-photo-preview profile-photo-placeholder" aria-hidden="true">{p.name.slice(0, 1).toUpperCase() || 'A'}</div>}
@@ -391,7 +401,7 @@ export function ProfileForm({
           apply.
         </span>
       </label>
-      <button className="action-primary" disabled={busy} type="submit">
+      <button className="action-primary" disabled={busy || profileChangedElsewhere} type="submit">
         {busy ? 'Saving…' : 'Save profile'}
         <Check size={17} />
       </button>

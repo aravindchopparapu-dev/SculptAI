@@ -13,6 +13,7 @@ import Observation
     let service = AccountService()
     private let cacheURL: URL
     private var pendingChange: (data: Data, operationID: String, revision: Int)?
+    private var refreshingQuietly = false
     init() {
         var cacheName = "member-cache.json"
         #if DEBUG
@@ -36,6 +37,15 @@ import Observation
         let snapshot: MemberSnapshot = try await service.request("api/state")
         accept(snapshot)
         configuration = try? await service.request("api/v1/app-config")
+    }
+    func refreshQuietly() async {
+        guard connected && !busy && !refreshingQuietly else { return }
+        refreshingQuietly = true
+        defer { refreshingQuietly = false }
+        do {
+            let snapshot: MemberSnapshot = try await service.request("api/state")
+            if !busy && snapshot.revision >= revision { accept(snapshot) }
+        } catch { /* Keep the last saved view while offline. */ }
     }
     func accept(_ snapshot: MemberSnapshot) {
         state = snapshot.state; revision = snapshot.revision; lastSynced = Date()

@@ -8,6 +8,7 @@ import SwiftUI
 }
 struct RootView: View {
     @Environment(SculptStore.self) private var store
+    @Environment(\.scenePhase) private var scenePhase
     @State private var tab = 0
     @State private var account = false
     var body: some View {
@@ -23,6 +24,14 @@ struct RootView: View {
         .alert("SculptAI", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) { Button("OK") { store.error = nil } } message: { Text(store.error ?? "") }
         .overlay(alignment: .top) { if store.busy { ProgressView("Working…").padding(12).background(.regularMaterial, in: Capsule()).padding(.top, 8).accessibilityAddTraits(.updatesFrequently) } }
         .task { if store.connected { _ = await store.perform { try await store.refresh() } } }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            await store.refreshQuietly()
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(30)) } catch { break }
+                await store.refreshQuietly()
+            }
+        }
     }
     @ToolbarContentBuilder private var accountButton: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) { Button("Account", systemImage: "person.crop.circle") { account = true }.accessibilityIdentifier("account") }

@@ -25,7 +25,9 @@ struct AccountView: View {
                 Section {
                     Label(store.state.profile?.name ?? "Your SculptAI account", systemImage: "person.crop.circle.fill").font(.headline).stableScrollEdges()
                     if let date = store.lastSynced { Text("Synced \(date.formatted(date: .abbreviated, time: .shortened))").font(.caption).foregroundStyle(.secondary) }
-                    NavigationLink(store.state.profile == nil ? "Set up profile" : "Edit profile") { ProfileView(profile: store.state.profile ?? MemberProfile()) }
+                    NavigationLink(store.state.profile == nil ? "Set up profile" : "Edit profile") {
+                        ProfileView(profile: store.state.profile ?? MemberProfile(), requiresSafetySetup: store.state.needsSafetySetup)
+                    }
                     Button("Refresh account") { Task { _ = await store.perform { try await store.refresh() } } }
                 } header: { Text("Account") } footer: { Text("Your website and iPhone share the same saved profile, plans, and Coach instructions.") }
                 Section { Button("Disconnect this iPhone", role: .destructive) { signingOut = true } }
@@ -58,7 +60,9 @@ struct AccountView: View {
                 Link("Open SculptAI website", destination: AccountService.origin)
                 Text("AI guidance is an estimate. Review plans before using them.").font(.caption).foregroundStyle(.secondary)
             }
-        }.navigationDestination(isPresented: $setupProfile) { ProfileView(profile: store.state.profile ?? MemberProfile()) }
+        }.navigationDestination(isPresented: $setupProfile) {
+            ProfileView(profile: store.state.profile ?? MemberProfile(), requiresSafetySetup: store.state.needsSafetySetup)
+        }
         .navigationTitle("Your account").navigationBarTitleDisplayMode(.inline).toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
             .confirmationDialog("Disconnect this iPhone?", isPresented: $signingOut, titleVisibility: .visible) { Button("Disconnect and clear this phone", role: .destructive) { Task { await store.disconnect() } } } message: { Text("Your website account and saved records are retained. This phone’s session and offline copy will be removed.") }
     }
@@ -87,6 +91,7 @@ struct ProfileView: View {
     @Environment(SculptStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State var profile: MemberProfile
+    let requiresSafetySetup: Bool
     @State private var age = ""
     @State private var height = ""
     @State private var weight = ""
@@ -94,6 +99,9 @@ struct ProfileView: View {
     @State private var consent = false
     @State private var safety = "clear"
     @State private var validation: String?
+    @State private var openedProfile: MemberProfile?
+    @State private var openedProfileLoaded = false
+    private var profileChangedElsewhere: Bool { openedProfileLoaded && openedProfile != store.state.profile }
     var body: some View {
         Form {
             Section("Your starting point") {
@@ -118,25 +126,53 @@ struct ProfileView: View {
                 Picker("Diet", selection: $profile.diet) { ForEach(["Omnivore","Vegetarian","Vegan"], id: \.self) { Text($0) } }
                 TextField("Foods to exclude", text: $profile.exclusions, axis: .vertical)
             }
-            Section("Before you train") {
-                Picker("Activity check", selection: $safety) { Text("Ready for activity").tag("clear"); Text("I need professional guidance").tag("guidance"); Text("I have urgent symptoms").tag("emergency") }
-                Toggle("I am 18+ and understand SculptAI provides general fitness guidance, not medical care.", isOn: $consent)
+            if requiresSafetySetup {
+                Section("Before you train") {
+                    Picker("Activity check", selection: $safety) { Text("Ready for activity").tag("clear"); Text("I need professional guidance").tag("guidance"); Text("I have urgent symptoms").tag("emergency") }
+                    Toggle("I am 18+ and understand SculptAI provides general fitness guidance, not medical care.", isOn: $consent)
+                }
+            }
+            if profileChangedElsewhere {
+                Section {
+                    Text("Your profile changed on the website or another device. Load the latest version before saving to avoid replacing those changes.")
+                        .foregroundStyle(.orange)
+                    Button("Load latest profile") { loadLatestProfile() }
+                }
             }
             if let validation { Section { Text(validation).foregroundStyle(.red) } }
-            Section { Button("Save profile") { Task { await save() } }.disabled(store.busy || !consent) }
+            Section {
+                Button("Save profile") { Task { await save() } }
+                    .disabled(!canSaveProfile(requiresSafetySetup: requiresSafetySetup, consent: consent, busy: store.busy, profileChangedElsewhere: profileChangedElsewhere))
+            }
         }.navigationTitle("Your profile").navigationBarTitleDisplayMode(.inline)
-            .onAppear { age = String(profile.age); height = profile.height > 0 ? profile.height.formatted() : ""; weight = profile.weight > 0 ? profile.weight.formatted() : ""; target = profile.targetWeight?.formatted() ?? "" }
+            .onAppear { openedProfile = store.state.profile == nil ? nil : profile; openedProfileLoaded = true; fillMeasurements() }
             .scrollDismissesKeyboard(.interactively)
     }
+    private func fillMeasurements() {
+        age = String(profile.age)
+        height = profile.height > 0 ? profile.height.formatted() : ""
+        weight = profile.weight > 0 ? profile.weight.formatted() : ""
+        target = profile.targetWeight?.formatted() ?? ""
+    }
+    private func loadLatestProfile() {
+        profile = store.state.profile ?? MemberProfile()
+        openedProfile = store.state.profile
+        validation = nil
+        fillMeasurements()
+    }
     private func save() async {
+        if profileChangedElsewhere { validation = "Load the latest profile before saving."; return }
         profile.age = Int(age) ?? 0; profile.height = decimal(height) ?? 0; profile.weight = decimal(weight) ?? 0; profile.targetWeight = decimal(target)
         if let error = profile.validationMessage { validation = error; return }
         let saved = await store.perform {
             try await store.change(["type": "profile", "profile": try profile.dictionary()])
-            try await store.change(["type": "safety", "accepted": consent, "status": safety])
+            if requiresSafetySetup { try await store.change(["type": "safety", "accepted": consent, "status": safety]) }
         }
         if saved { dismiss() }
     }
+}
+func canSaveProfile(requiresSafetySetup: Bool, consent: Bool, busy: Bool, profileChangedElsewhere: Bool) -> Bool {
+    !busy && !profileChangedElsewhere && (!requiresSafetySetup || consent)
 }
 struct NumberEntry: View {
     let title: String

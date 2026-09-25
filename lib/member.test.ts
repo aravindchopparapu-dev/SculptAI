@@ -128,6 +128,31 @@ void test('Competing writers cannot overwrite a newer save', async () => {
   assert.equal(results.filter((x) => x.status === 'fulfilled').length, 1);
   assert.equal((await readState(d, 'alice')).revision, 2);
 });
+void test('Phone and website profile edits become visible to each other without losing concurrent changes', async () => {
+  const database = db(), account = 'shared-member';
+  const firstPhoneRead = await readState(database, account);
+  const firstWebsiteRead = await readState(database, account);
+  assert.equal(firstPhoneRead.revision, firstWebsiteRead.revision);
+
+  const websiteSave = await mutateState(database, account, firstWebsiteRead.revision, crypto.randomUUID(), {
+    type: 'profile', profile,
+  });
+  const phoneRead = await readState(database, account);
+  assert.equal(phoneRead.state.profile?.name, profile.name);
+  assert.equal(phoneRead.revision, websiteSave.revision);
+
+  const phoneSave = await mutateState(database, account, phoneRead.revision, crypto.randomUUID(), {
+    type: 'profile', profile: { ...phoneRead.state.profile!, targetWeight: 72 },
+  });
+  const websiteRead = await readState(database, account);
+  assert.equal(websiteRead.state.profile?.targetWeight, 72);
+  assert.equal(websiteRead.revision, phoneSave.revision);
+  await assert.rejects(mutateState(database, account, firstWebsiteRead.revision, crypto.randomUUID(), {
+    type: 'profile', profile: { ...profile, name: 'Stale website edit' },
+  }), Conflict);
+  assert.equal((await readState(database, account)).state.profile?.targetWeight, 72);
+  assert.equal((await readState(database, 'different-member')).state.profile, null);
+});
 void test('Profile validation rejects minors and wrong numeric types; missing body measurements cannot be saved', () => {
   assert.throws(() => validateProfile({ ...profile, age: 17 }));
   assert.throws(() =>

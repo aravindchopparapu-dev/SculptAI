@@ -98,6 +98,8 @@ struct MealItem: Codable, Identifiable {
 }
 struct PlannedMeal: Codable, Identifiable { var id: String { slot }; let slot: String; let items: [MealItem]; let totals: FoodMacros }
 struct MealPlan: Codable { let id: String; let contextKey: String; let notes: String; let meals: [PlannedMeal]; let totals: FoodMacros }
+struct SafetyConsent: Codable { let version: String }
+struct SafetyScreen: Codable { let status: String }
 struct MemberState: Codable {
     var profile: MemberProfile?
     var profilePhoto: String?
@@ -107,6 +109,11 @@ struct MemberState: Codable {
     var mealFoods: [String: [String]]?
     var mealPlan: MealPlan?
     var draftWorkout: WorkoutDraft?
+    var consents: [SafetyConsent]?
+    var safetyScreens: [SafetyScreen]?
+    var needsSafetySetup: Bool {
+        !(consents ?? []).contains { $0.version == "testing-2026-09-18" } || (safetyScreens ?? []).isEmpty
+    }
     var currentWeight: Double? { metrics.sorted { $0.date < $1.date }.last?.weight ?? profile?.weight }
     var mealPlanIsCurrent: Bool {
         guard let key = mealPlan?.contextKey, let data = key.data(using: .utf8),

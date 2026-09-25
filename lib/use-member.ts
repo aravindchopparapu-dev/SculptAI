@@ -18,6 +18,7 @@ export function useMember(initialSnapshot: MemberSnapshot | null = null) {
   });
   const current = useRef(snapshot),
     queue = useRef(Promise.resolve());
+  const busyRef = useRef(false);
   const initialized = useRef(Boolean(initialSnapshot));
   const [demo, setDemo] = useState(false);
   const demoRef = useRef(false);
@@ -68,11 +69,32 @@ export function useMember(initialSnapshot: MemberSnapshot | null = null) {
       setLoading(false);
     }
   }, [update]);
+  const refreshQuietly = useCallback(async () => {
+    if (demoRef.current || busyRef.current || document.visibilityState !== 'visible') return;
+    try {
+      const response = await fetch('/api/state', { cache: 'no-store' });
+      const next = (await response.json()) as ApiSnapshot;
+      if (busyRef.current) return;
+      if (response.status === 401) update({ state: emptyState(), revision: 0, user: undefined });
+      else if (response.ok && next.revision >= current.current.revision) update(next);
+    } catch { /* Keep the last saved view while offline. */ }
+  }, [update]);
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
     void refresh();
   }, [refresh]);
+  useEffect(() => {
+    const onReturn = () => { void refreshQuietly(); };
+    window.addEventListener('focus', onReturn);
+    document.addEventListener('visibilitychange', onReturn);
+    const interval = window.setInterval(onReturn, 30_000);
+    return () => {
+      window.removeEventListener('focus', onReturn);
+      document.removeEventListener('visibilitychange', onReturn);
+      window.clearInterval(interval);
+    };
+  }, [refreshQuietly]);
   useEffect(() => {
     if (!busy) return;
     const beforeUnload = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -82,6 +104,7 @@ export function useMember(initialSnapshot: MemberSnapshot | null = null) {
   const mutate = useCallback(
     (action: Action): Promise<boolean> => {
       setBusy(true);
+      busyRef.current = true;
       const run = async () => {
         setError('');
         setSaved('Saving…');
@@ -144,7 +167,7 @@ export function useMember(initialSnapshot: MemberSnapshot | null = null) {
       queue.current = result.then(() => undefined);
       const tail = queue.current;
       void result.finally(() => {
-        if (queue.current === tail) setBusy(false);
+        if (queue.current === tail) { busyRef.current = false; setBusy(false); }
       });
       return result;
     },

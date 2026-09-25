@@ -38,4 +38,16 @@ final class SculptAITests: XCTestCase {
         XCTAssertNil(value.state.profile)
         XCTAssertTrue(value.state.plans.isEmpty)
     }
+    func testExistingProfileCanSaveWithoutRepeatingConsent() {
+        XCTAssertTrue(canSaveProfile(requiresSafetySetup: false, consent: false, busy: false, profileChangedElsewhere: false))
+        XCTAssertFalse(canSaveProfile(requiresSafetySetup: true, consent: false, busy: false, profileChangedElsewhere: false))
+        XCTAssertTrue(canSaveProfile(requiresSafetySetup: true, consent: true, busy: false, profileChangedElsewhere: false))
+        XCTAssertFalse(canSaveProfile(requiresSafetySetup: false, consent: false, busy: false, profileChangedElsewhere: true))
+    }
+    func testSafetySetupIsOnlyNeededUntilTheSavedConsentAndCheckExist() throws {
+        let noSafety = try JSONDecoder().decode(MemberSnapshot.self, from: Data(#"{"revision":1,"state":{"profile":null,"plans":[],"metrics":[],"targets":[],"consents":[],"safetyScreens":[]}}"#.utf8))
+        XCTAssertTrue(noSafety.state.needsSafetySetup)
+        let completed = try JSONDecoder().decode(MemberSnapshot.self, from: Data(#"{"revision":2,"state":{"profile":null,"plans":[],"metrics":[],"targets":[],"consents":[{"version":"testing-2026-09-18"}],"safetyScreens":[{"status":"clear"}]}}"#.utf8))
+        XCTAssertFalse(completed.state.needsSafetySetup)
+    }
 }
