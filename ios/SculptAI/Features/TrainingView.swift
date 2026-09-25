@@ -22,12 +22,15 @@ struct TrainingView: View {
                     Surface {
                         VStack(alignment: .leading, spacing: 18) {
                             HStack { Text("01").font(.title2.monospaced().weight(.light)).foregroundStyle(.secondary); Text("How are you arriving?").font(.headline) }
-                            readinessPicker("Energy", value: $energy, values: 1...5)
-                            readinessPicker("Sleep quality", value: $sleep, values: 1...5)
-                            readinessPicker("Soreness", value: $soreness, values: 0...10)
-                            Text("Energy and sleep: 1 low → 5 high. Soreness: 0 none → 10 high.").font(.caption).foregroundStyle(.secondary)
-                            Picker("Time available", selection: $minutes) { ForEach([20,30,45,60,75,90], id: \.self) { Text("\($0) min").tag($0) } }
-                            Picker("Equipment today", selection: $equipment) { ForEach(["Bodyweight","Dumbbells","Gym"], id: \.self) { Text($0) } }
+                            readinessPicker("Energy", hint: "1 low · 5 high", value: $energy, values: 1...5)
+                            readinessPicker("Sleep quality", hint: "1 poor · 5 great", value: $sleep, values: 1...5)
+                            readinessPicker("Muscle soreness", hint: "0 none · 10 severe", value: $soreness, values: 0...10)
+                            labeledChoice("Time available") {
+                                Picker("Time available", selection: $minutes) { ForEach([20,30,45,60,75,90], id: \.self) { Text("\($0) min").tag($0) } }
+                            }
+                            labeledChoice("Equipment today") {
+                                Picker("Equipment today", selection: $equipment) { ForEach(["Bodyweight","Dumbbells","Gym"], id: \.self) { Text($0) } }
+                            }
                             Toggle("I have pain during movement", isOn: $pain)
                             if pain { Label("Pause training and get appropriate guidance before continuing.", systemImage: "hand.raised").font(.subheadline).foregroundStyle(.orange) }
                             Button(ready ? "Readiness saved ✓" : "Save today’s readiness") { Task { ready = await store.perform { try await store.change(["type": "readiness", "beforePlan": true, "readiness": ["dayIndex": 0, "energy": energy, "sleep": sleep, "soreness": soreness, "minutes": minutes, "equipment": equipment, "pain": pain]]) } } }.disabled(store.busy || pain || ready).buttonStyle(.bordered)
@@ -85,7 +88,21 @@ struct TrainingView: View {
                 Button("Delete workout", role: .destructive) { if let plan = deleting { Task { _ = await store.perform { try await store.change(["type": "deleteWorkout", "planId": plan.id, "confirmed": true]) }; deleting = nil } } }
             }
     }
-    private func readinessPicker(_ title: String, value: Binding<Int>, values: ClosedRange<Int>) -> some View { Picker(title, selection: value) { ForEach(values, id: \.self) { Text(String($0)).tag($0) } } }
+    private func readinessPicker(_ title: String, hint: String, value: Binding<Int>, values: ClosedRange<Int>) -> some View {
+        labeledChoice(title, hint: hint) {
+            Picker(title, selection: value) { ForEach(values, id: \.self) { Text(String($0)).tag($0) } }
+        }
+    }
+    private func labeledChoice<Content: View>(_ title: String, hint: String? = nil, @ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.subheadline.weight(.medium))
+                if let hint { Text(hint).font(.caption2).foregroundStyle(.secondary) }
+            }
+            Spacer(minLength: 4)
+            content().labelsHidden().pickerStyle(.menu)
+        }
+    }
     private func generate() async {
         _ = await store.perform {
             let groups = trainingGroups.filter { selected.contains($0) }
