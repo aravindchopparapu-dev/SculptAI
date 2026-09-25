@@ -3,11 +3,8 @@ import './globals.css';
 
 export const metadata: Metadata = {
   icons: {
-    icon: [
-      { url: '/brand/neural-brain-32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/brand/neural-brain-192.png', sizes: '192x192', type: 'image/png' },
-    ],
-    apple: [{ url: '/brand/neural-brain-180.png', sizes: '180x180', type: 'image/png' }],
+    icon: [{ url: '/brand/neural-brain-website.png', type: 'image/png' }],
+    apple: [{ url: '/brand/neural-brain-website.png', type: 'image/png' }],
   },
   title: 'SculptAI Studio / 02 — A stronger you, in motion',
   description:

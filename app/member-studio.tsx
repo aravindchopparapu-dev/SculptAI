@@ -203,7 +203,7 @@ export default function MemberStudio({ initialScreen, screenInUrl, initialMember
       </a>
       <header className="navigation">
         <a className="logo" href="/">
-          <BrandMark />
+          <BrandMark website />
           sculpt<span className="logo-ai">ai</span>
           <small>STUDIO / 02</small>
         </a>
